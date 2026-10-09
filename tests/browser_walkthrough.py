@@ -1,4 +1,4 @@
-"""End-to-end browser walkthrough (TB01-TB10) that also saves screenshots
+"""End-to-end browser walkthrough (TB01-TB13) that also saves screenshots
 for the report and the presentation.
 
 It rebuilds the separate database smart_lab_equipment_apptest from the SQL
@@ -78,18 +78,18 @@ def main():
 
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None)
-        page = browser.new_page(viewport={"width": 1366, "height": 800})
+        page = browser.new_page(viewport={"width": 1440, "height": 900})
 
         def dashboard():
             page.goto(BASE + "/")
-            expect(page.locator("h1")).to_have_text("Dashboard")
-            expect(page.locator(".tile.warn .n")).to_have_text("3")          # 3 overdue
+            expect(page.locator("h1")).to_have_text("Operations overview")
+            expect(page.locator(".kpi-overdue .kpi-n")).to_have_text("3")    # 3 overdue
             expect(page.locator("text=Vikram Joshi")).to_be_visible()
         step("TB01", "Dashboard shows inventory figures and overdue loans", "01_dashboard.png", dashboard)
 
         def search():
             page.goto(BASE + "/equipment/")
-            page.fill("input[name=q]", "multimeter")
+            page.fill("form.filters input[name=q]", "multimeter")
             page.select_option("select[name=status]", "Available")
             page.click("button:has-text('Search')")
             expect(page.locator("text=2 item(s) found.")).to_be_visible()
@@ -110,6 +110,7 @@ def main():
             page.click("button:has-text('Issue')")
             expect(page.locator(".error")).to_have_text(
                 "Expected return date must be on or after the allocation date.")
+            expect(page.locator("[data-check=dates]")).to_have_class("check-bad")   # live check agrees
         step("TB04", "Issue form rejects a due date before the issue date", "04_issue_validation.png", issue_invalid)
 
         def issue_ok():
@@ -156,6 +157,35 @@ def main():
             expect(page.locator("h1")).to_contain_text("Aarav Menon")
             expect(page.locator("tbody tr")).to_have_count(4)
         step("TB10", "Student detail with allocation history", "11_student_detail.png", student)
+
+        def saved_views():
+            page.goto(BASE + "/equipment/")
+            page.click(".tabs a:has-text('Needs attention')")
+            count = page.locator(".tabs a.active .tab-count").inner_text()
+            expect(page.locator("table.data tbody tr")).to_have_count(int(count))
+            page.click("th a:has-text('Last activity')")
+            expect(page.locator("th[aria-sort=ascending]")).to_contain_text("Last activity")
+        step("TB11", "Saved view tab and sortable column on the equipment list", "12_equipment_views.png", saved_views)
+
+        def issue_form_helpers():
+            page.goto(BASE + "/allocations/new?equipment_id=5")
+            page.select_option("select[name=student_id]", "10")
+            page.click("button.chip:has-text('2 weeks')")
+            expect(page.locator("input[name=expected_return_date]")).to_have_value("2026-10-24")
+            expect(page.locator("#checks li.check-ok")).to_have_count(4)
+            expect(page.locator("#sum-item")).to_have_text("DMM-17B-0005")
+        step("TB12", "Issue form: quick due date, pre-issue checks and summary", "13_issue_form.png", issue_form_helpers)
+
+        def mobile():
+            page.set_viewport_size({"width": 390, "height": 844})
+            page.goto(BASE + "/")
+            expect(page.locator("#sidebar")).not_to_be_in_viewport()
+            page.click(".nav-toggle")
+            expect(page.locator("#sidebar")).to_be_in_viewport()
+            page.wait_for_timeout(300)                 # let the slide-in finish before the screenshot
+            overflow = page.evaluate("document.documentElement.scrollWidth - window.innerWidth")
+            assert overflow <= 0, f"page scrolls sideways by {overflow}px"
+        step("TB13", "Phone width: menu opens from the toggle, no sideways scroll", "14_mobile_menu.png", mobile)
 
         browser.close()
     server.shutdown()

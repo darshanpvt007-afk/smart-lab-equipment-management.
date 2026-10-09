@@ -1,43 +1,122 @@
 {% extends "base.html" %}
-{% from "macros.html" import badge with context %}
+{% from "macros.html" import badge, csrf with context %}
 {% block title %}Equipment{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>Equipment</h1>
-  <a class="btn btn-primary" href="{{ url_for('equipment.create') }}">+ Add equipment</a>
+  <div>
+    <h1>Equipment</h1>
+    <p class="page-sub">Every physical item, where it is, and whether it can be issued.</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{{ list_url('equipment.export_csv', page=1) }}">Export CSV</a>
+    <a class="btn btn-primary" href="{{ url_for('equipment.create') }}">+ Add equipment</a>
+  </div>
 </div>
 
-<form method="get" class="filters">
-  <input type="search" name="q" value="{{ filters.q }}" placeholder="Name or serial number" aria-label="Search">
-  <select name="lab_id" aria-label="Laboratory">
-    <option value="">All labs</option>
-    {% for l in labs %}<option value="{{ l.id }}" {{ 'selected' if l.id|string == filters.lab_id }}>{{ l.name }}</option>{% endfor %}
-  </select>
-  <select name="category_id" aria-label="Category">
-    <option value="">All categories</option>
-    {% for c in categories %}<option value="{{ c.id }}" {{ 'selected' if c.id|string == filters.category_id }}>{{ c.name }}</option>{% endfor %}
-  </select>
-  <select name="status" aria-label="Availability">
-    <option value="">Any status</option>
-    {% for s in statuses %}<option {{ 'selected' if s == filters.status }}>{{ s }}</option>{% endfor %}
-  </select>
-  <button class="btn" type="submit">Search</button>
-  <a class="btn btn-link" href="{{ url_for('equipment.list_equipment') }}">Clear</a>
-</form>
-
-<p class="muted">{{ rows|length }} item(s) found.</p>
-<table>
-  <thead><tr><th>Serial</th><th>Name</th><th>Category</th><th>Lab</th><th>Condition</th><th>Availability</th></tr></thead>
-  <tbody>
-  {% for r in rows %}
-    <tr>
-      <td><a href="{{ url_for('equipment.detail', equipment_id=r.equipment_id) }}">{{ r.serial_number }}</a></td>
-      <td>{{ r.equipment_name }}</td><td>{{ r.category_name }}</td><td>{{ r.lab_name }}</td>
-      <td>{{ r.equipment_condition }}</td><td>{{ badge(r.availability_status) }}</td>
-    </tr>
-  {% else %}
-    <tr><td colspan="6" class="muted">No equipment matches the search.</td></tr>
+<nav class="tabs" aria-label="Saved views">
+  {% for key, (label, _) in views.items() %}
+    <a href="{{ list_url(view=key, page=1) }}" class="{{ 'active' if filters.view == key }}"
+       {{ 'aria-current=page' if filters.view == key }}>{{ label }} <span class="tab-count">{{ view_counts[key] }}</span></a>
   {% endfor %}
-  </tbody>
-</table>
+</nav>
+
+<section class="panel table-panel">
+  <form method="get" class="filters">
+    <input type="hidden" name="view" value="{{ filters.view }}">
+    <input type="hidden" name="sort" value="{{ filters.sort }}">
+    <input type="hidden" name="dir" value="{{ filters.dir }}">
+    <input type="hidden" name="per_page" value="{{ filters.per_page }}">
+    <input type="search" name="q" value="{{ filters.q }}" placeholder="Name or serial number" aria-label="Search equipment">
+    <select name="lab_id" aria-label="Laboratory">
+      <option value="">All labs</option>
+      {% for l in labs %}<option value="{{ l.id }}" {{ 'selected' if l.id|string == filters.lab_id }}>{{ l.name }}</option>{% endfor %}
+    </select>
+    <select name="category_id" aria-label="Category">
+      <option value="">All categories</option>
+      {% for c in categories %}<option value="{{ c.id }}" {{ 'selected' if c.id|string == filters.category_id }}>{{ c.name }}</option>{% endfor %}
+    </select>
+    <select name="status" aria-label="Availability">
+      <option value="">Any status</option>
+      {% for s in statuses %}<option {{ 'selected' if s == filters.status }}>{{ s }}</option>{% endfor %}
+    </select>
+    <button class="btn" type="submit">Search</button>
+    {% if filters.q or filters.lab_id or filters.category_id or filters.status %}
+      <a class="btn btn-link" href="{{ list_url(q='', lab_id='', category_id='', status='', page=1) }}">Clear filters</a>
+    {% endif %}
+    <span class="result-count">{{ total }} item(s) found.</span>
+  </form>
+
+  {% macro sort_head(key, label) %}
+    {% set active = filters.sort == key %}
+    {% set next_dir = 'desc' if active and filters.dir == 'asc' else 'asc' %}
+    <th aria-sort="{{ ('ascending' if filters.dir == 'asc' else 'descending') if active else 'none' }}">
+      <a class="sort {{ 'sort-active' if active }}" href="{{ list_url(sort=key, dir=next_dir, page=1) }}">{{ label }}
+        <span aria-hidden="true">{{ ('↑' if filters.dir == 'asc' else '↓') if active else '↕' }}</span></a>
+    </th>
+  {% endmacro %}
+
+  <div class="table-scroll">
+  <table class="data">
+    <thead><tr>
+      {{ sort_head('name', 'Equipment') }}{{ sort_head('category', 'Category') }}{{ sort_head('lab', 'Lab') }}
+      {{ sort_head('condition', 'Condition') }}{{ sort_head('status', 'Status') }}{{ sort_head('activity', 'Last activity') }}
+      <th class="num">Action</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td><a class="strong" href="{{ url_for('equipment.detail', equipment_id=r.equipment_id) }}">{{ r.equipment_name }}</a>
+            <span class="mono sub">{{ r.serial_number }}</span></td>
+        <td>{{ r.category_name }}</td>
+        <td>{{ r.lab_name }}</td>
+        <td>{{ r.equipment_condition }}</td>
+        <td>{{ badge(r.availability_status) }}{% if r.overdue %} <span class="pill pill-overdue">Overdue</span>{% endif %}</td>
+        <td>{% if r.last_activity %}{{ r.last_activity }}<small>{{ r.last_date|dmy }}</small>{% else %}<span class="muted">-</span>{% endif %}</td>
+        <td class="num row-actions">
+          {% if r.availability_status == 'Available' %}
+            <a class="btn btn-small" href="{{ url_for('allocations.issue', equipment_id=r.equipment_id) }}">Issue</a>
+          {% elif r.allocation_id %}
+            <a class="btn btn-small" href="{{ url_for('allocations.return_equipment', allocation_id=r.allocation_id) }}">Record return</a>
+          {% elif r.job_in_progress %}
+            <a class="btn btn-small" href="{{ url_for('maintenance.complete', maintenance_id=r.job_in_progress) }}">Complete job</a>
+          {% elif r.job_scheduled %}
+            <form method="post" action="{{ url_for('maintenance.start', maintenance_id=r.job_scheduled) }}" class="inline">
+              {{ csrf() }}<button class="btn btn-small" type="submit">Start job</button>
+            </form>
+          {% else %}
+            <a class="btn btn-small" href="{{ url_for('maintenance.schedule', equipment_id=r.equipment_id) }}">Schedule repair</a>
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="empty">No equipment matches these filters.
+        <a href="{{ list_url(q='', lab_id='', category_id='', status='', view='all', page=1) }}">Show all equipment</a></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <footer class="pager">
+    <form method="get" class="per-page">
+      {% for k in ('q', 'lab_id', 'category_id', 'status', 'view', 'sort', 'dir') if filters[k] %}
+        <input type="hidden" name="{{ k }}" value="{{ filters[k] }}">
+      {% endfor %}
+      <label for="per_page">Rows per page</label>
+      <select id="per_page" name="per_page" data-autosubmit>
+        {% for n in page_sizes %}<option {{ 'selected' if n == filters.per_page }}>{{ n }}</option>{% endfor %}
+      </select>
+      <noscript><button class="btn btn-small" type="submit">Apply</button></noscript>
+    </form>
+    <span class="pager-range">
+      {% if total %}{{ (filters.page - 1) * filters.per_page + 1 }}–{{ (filters.page - 1) * filters.per_page + rows|length }} of {{ total }}{% else %}0 of 0{% endif %}
+    </span>
+    <nav class="pager-pages" aria-label="Pages">
+      {% if filters.page > 1 %}<a href="{{ list_url(page=filters.page - 1) }}" aria-label="Previous page">‹</a>{% else %}<span class="disabled">‹</span>{% endif %}
+      {% for p in range(1, pages + 1) %}
+        {% if p == filters.page %}<span class="current" aria-current="page">{{ p }}</span>{% else %}<a href="{{ list_url(page=p) }}">{{ p }}</a>{% endif %}
+      {% endfor %}
+      {% if filters.page < pages %}<a href="{{ list_url(page=filters.page + 1) }}" aria-label="Next page">›</a>{% else %}<span class="disabled">›</span>{% endif %}
+    </nav>
+  </footer>
+</section>
 {% endblock %}

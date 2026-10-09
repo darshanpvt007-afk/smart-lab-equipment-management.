@@ -1,57 +1,141 @@
 {% extends "base.html" %}
-{% from "macros.html" import badge %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-<h1>Dashboard</h1>
-
-<section class="tiles">
-  <a class="tile" href="{{ url_for('equipment.list_equipment') }}"><span class="n">{{ totals.equipment }}</span><span>Equipment items</span></a>
-  <a class="tile ok" href="{{ url_for('equipment.list_equipment', status='Available') }}"><span class="n">{{ counts.get('Available', 0) }}</span><span>Available</span></a>
-  <a class="tile info" href="{{ url_for('allocations.list_allocations', show='issued') }}"><span class="n">{{ totals.outstanding }}</span><span>Issued to students</span></a>
-  <a class="tile warn" href="{{ url_for('allocations.list_allocations', show='overdue') }}"><span class="n">{{ totals.overdue }}</span><span>Overdue</span></a>
-  <a class="tile" href="{{ url_for('equipment.list_equipment', status='Under Maintenance') }}"><span class="n">{{ counts.get('Under Maintenance', 0) }}</span><span>Under maintenance</span></a>
-  <a class="tile" href="{{ url_for('equipment.list_equipment', status='Unavailable') }}"><span class="n">{{ counts.get('Unavailable', 0) }}</span><span>Unavailable</span></a>
-</section>
-
-<div class="actions">
-  <a class="btn btn-primary" href="{{ url_for('allocations.issue') }}">Issue equipment</a>
-  <a class="btn" href="{{ url_for('allocations.list_allocations', show='issued') }}">Record a return</a>
-  <a class="btn" href="{{ url_for('maintenance.schedule') }}">Schedule maintenance</a>
-  <a class="btn" href="{{ url_for('equipment.create') }}">Add equipment</a>
+{% set total = totals.equipment or 0 %}
+{% set available = counts.get('Available', 0) %}
+<div class="page-head">
+  <div>
+    <h1>Operations overview</h1>
+    <p class="page-sub">All labs ·
+      {% if totals.overdue or totals.jobs_in_progress %}
+        {{ totals.overdue }} overdue loan{{ 's' if totals.overdue != 1 }} and {{ totals.jobs_in_progress }} job{{ 's' if totals.jobs_in_progress != 1 }} in progress need attention.
+      {% else %}nothing needs attention right now.{% endif %}
+    </p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('equipment.export_csv') }}">Export inventory</a>
+    <a class="btn btn-primary" href="{{ url_for('allocations.issue') }}">Issue equipment</a>
+  </div>
 </div>
 
-<h2>Overdue allocations</h2>
-{% if overdue %}
-<table>
-  <thead><tr><th>#</th><th>Student</th><th>Equipment</th><th>Due</th><th class="num">Days overdue</th><th></th></tr></thead>
-  <tbody>
-  {% for r in overdue %}
-    <tr>
-      <td>{{ r.allocation_id }}</td>
-      <td>{{ r.student_name }} <small>{{ r.register_number }}</small></td>
-      <td>{{ r.equipment_name }} <small>{{ r.serial_number }}</small></td>
-      <td>{{ r.expected_return_date }}</td>
-      <td class="num warn-text">{{ r.days_overdue }}</td>
-      <td><a class="btn btn-small" href="{{ url_for('allocations.return_equipment', allocation_id=r.allocation_id) }}">Return</a></td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
-{% else %}<p class="muted">No overdue allocations.</p>{% endif %}
+<section class="kpis" aria-label="Key figures">
+  <a class="kpi" href="{{ url_for('equipment.list_equipment', view='available') }}">
+    <p class="kpi-label">Available now</p>
+    <p class="kpi-value"><span class="kpi-n">{{ available }}</span> of {{ total }}</p>
+    <span class="meter" aria-hidden="true"><span style="width: {{ (100 * available / total) if total else 0 }}%"></span></span>
+    <p class="kpi-context">{{ ((100 * available / total) if total else 0)|round|int }}% of the inventory can be issued</p>
+  </a>
+  <a class="kpi" href="{{ url_for('allocations.list_allocations', show='issued') }}">
+    <p class="kpi-label">On loan</p>
+    <p class="kpi-value"><span class="kpi-n">{{ totals.outstanding }}</span> items</p>
+    <p class="kpi-context">{{ totals.issued_last_7_days }} issued in the last 7 days</p>
+  </a>
+  <a class="kpi kpi-overdue {{ 'kpi-alert' if totals.overdue }}" href="{{ url_for('allocations.list_allocations', show='overdue') }}">
+    <p class="kpi-label">Overdue</p>
+    <p class="kpi-value"><span class="kpi-n">{{ totals.overdue }}</span> loans</p>
+    <p class="kpi-context">{% if overdue %}Oldest {{ overdue[0].days_overdue }} days late · {{ (100 * totals.overdue / totals.outstanding)|round|int }}% of loans{% else %}Every loan is on time{% endif %}</p>
+  </a>
+  <a class="kpi" href="{{ url_for('maintenance.list_jobs') }}">
+    <p class="kpi-label">Maintenance</p>
+    <p class="kpi-value"><span class="kpi-n">{{ totals.jobs_in_progress }}</span> in progress · {{ totals.jobs_scheduled }} scheduled</p>
+    <p class="kpi-context">{{ totals.cost_committed|inr }} committed · {{ totals.cost_spent|inr }} spent to date</p>
+  </a>
+</section>
 
-<h2>Open maintenance jobs</h2>
-{% if open_jobs %}
-<table>
-  <thead><tr><th>#</th><th>Date</th><th>Equipment</th><th>Type</th><th>Status</th><th>Staff</th></tr></thead>
-  <tbody>
-  {% for j in open_jobs %}
-    <tr>
-      <td>{{ j.maintenance_id }}</td><td>{{ j.maintenance_date }}</td>
-      <td>{{ j.equipment_name }} <small>{{ j.serial_number }}</small></td>
-      <td>{{ j.maintenance_type }}</td><td>{{ badge(j.maintenance_status) }}</td><td>{{ j.performed_by }}</td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
-{% else %}<p class="muted">No open maintenance jobs.</p>{% endif %}
+<div class="dash-grid">
+  <section class="panel panel-wide">
+    <header class="panel-head">
+      <h2>Overdue loans</h2>
+      <a href="{{ url_for('allocations.list_allocations', show='overdue') }}">Open in Allocations →</a>
+    </header>
+    {% if overdue %}
+    <table class="data">
+      <thead><tr><th>Student</th><th>Equipment</th><th>Issued by</th><th>Due</th><th class="num">Late</th><th class="num">Action</th></tr></thead>
+      <tbody>
+      {% for r in overdue %}
+        <tr>
+          <td><a class="strong" href="{{ url_for('students.detail', student_id=r.student_id) }}">{{ r.student_name }}</a>
+              <small>{{ r.register_number }} · {{ r.department }}</small></td>
+          <td><a class="strong" href="{{ url_for('equipment.detail', equipment_id=r.equipment_id) }}">{{ r.equipment_name }}</a>
+              <small class="mono">{{ r.serial_number }}</small></td>
+          <td>{{ r.issued_by }}</td>
+          <td class="nowrap">{{ r.expected_return_date|dmy }}</td>
+          <td class="num"><span class="pill pill-overdue">{{ r.days_overdue }} d</span></td>
+          <td class="num"><a class="btn btn-small" href="{{ url_for('allocations.return_equipment', allocation_id=r.allocation_id) }}">Record return</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="empty">No overdue loans. Everything is back or still within its due date.</p>{% endif %}
+    {% if due_soon %}
+      <p class="panel-foot">Due in the next 4 days:
+        {% for d in due_soon %}{{ d.student_name }} ({{ d.expected_return_date|dmy(false) }}){{ ', ' if not loop.last }}{% endfor %}</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <header class="panel-head"><h2>Loans issued per month</h2></header>
+    <div class="bars" role="img" aria-label="Loans issued per month: {% for m in months %}{{ m.label }} {{ m.n }}{{ ', ' if not loop.last }}{% endfor %}">
+      {% for m in months %}
+        <div class="bar-col">
+          <span class="bar-n">{{ m.n }}</span>
+          <span class="bar {{ 'bar-current' if loop.last }}" style="height: {{ (100 * m.n / month_max)|round|int }}%"></span>
+          <span class="bar-label">{{ m.label }}</span>
+        </div>
+      {% endfor %}
+    </div>
+    <p class="panel-foot">{% if busiest.n %}{{ busiest.name }} was the busiest month, with {{ busiest.n }} loan{{ 's' if busiest.n != 1 }}.{% else %}No loans in this period.{% endif %}</p>
+  </section>
+
+  <section class="panel panel-wide">
+    <header class="panel-head">
+      <h2>Lab utilisation</h2>
+      <span class="legend">
+        <i class="sw sw-available"></i>Available <i class="sw sw-allocated"></i>Allocated
+        <i class="sw sw-maintenance"></i>Under maintenance <i class="sw sw-unavailable"></i>Unavailable
+      </span>
+    </header>
+    <table class="data">
+      <thead><tr><th>Laboratory</th><th class="num">Items</th><th>Status mix</th><th class="num">On loan</th></tr></thead>
+      <tbody>
+      {% for l in labs %}
+        <tr>
+          <td><a class="strong" href="{{ url_for('equipment.list_equipment', lab_id=l.lab_id) }}">{{ l.lab_name }}</a><small>{{ l.location }}</small></td>
+          <td class="num">{{ l.item_count }}</td>
+          <td>
+            {% if l.item_count %}
+            <span class="stack" title="{{ l.available }} available, {{ l.on_loan }} allocated, {{ l.in_repair }} under maintenance, {{ l.unavailable }} unavailable">
+              {% for part, n in [('available', l.available), ('allocated', l.on_loan), ('maintenance', l.in_repair), ('unavailable', l.unavailable)] if n %}
+                <span class="sw-{{ part }}" style="width: {{ 100 * n / l.item_count }}%"></span>
+              {% endfor %}
+            </span>
+            {% else %}<span class="muted">No equipment</span>{% endif %}
+          </td>
+          <td class="num">{{ ((100 * l.on_loan / l.item_count) if l.item_count else 0)|round|int }}%</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <header class="panel-head"><h2>Recent activity</h2></header>
+    <ol class="feed">
+      {% for ev in feed %}
+        <li class="feed-{{ 'loan' if ev.kind in ('issued', 'returned') else 'maint' }}">
+          <p>
+            {% if ev.kind == 'issued' %}<b>{{ ev.staff }}</b> issued {{ ev.equipment_name }} to <b>{{ ev.person }}</b>
+            {% elif ev.kind == 'returned' %}<b>{{ ev.person }}</b> returned {{ ev.equipment_name }} ({{ ev.detail }})
+            {% else %}<b>{{ ev.staff }}</b> {{ 'completed' if ev.kind == 'maint-completed' else 'started' }} {{ ev.detail|lower }} of
+              <a class="mono" href="{{ url_for('equipment.detail', equipment_id=ev.equipment_id) }}">{{ ev.serial_number }}</a>{% endif %}
+          </p>
+          <small>{{ ev.event_date|dmy(false) }} ·
+            {% if ev.kind in ('issued', 'returned') %}Allocation #{{ ev.ref_id }}{% else %}Maintenance #{{ ev.ref_id }}{% endif %}</small>
+        </li>
+      {% else %}
+        <li class="empty">Nothing has happened yet.</li>
+      {% endfor %}
+    </ol>
+  </section>
+</div>
 {% endblock %}

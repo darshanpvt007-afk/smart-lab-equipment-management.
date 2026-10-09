@@ -21,7 +21,7 @@ The system records a college's laboratories, equipment, categories, suppliers, p
 | 3 | Search and retrieval | Equipment and student search and filters; detail pages with full history |
 | 3 | Important SQL queries through the application | Reports page (`app/routes/reports.py`), dashboard, issue/return/maintenance workflows calling stored procedures |
 | 3 | Input validation | `app/validators.py` and HTML form attributes; database constraints as the final guard |
-| 3 | Test cases | `tests/` (database, application and browser tests: 166 in total) |
+| 3 | Test cases | `tests/` (database, application and browser tests: 182 in total) |
 | 3 | Final database | `sql/01`–`12` (`sql/12_maintenance_procedures.sql` is new in Review 3) |
 | 3 | Final report and presentation | Delivered separately (see `docs/REVIEW3_IMPLEMENTATION.md`) |
 
@@ -62,7 +62,7 @@ The system records a college's laboratories, equipment, categories, suppliers, p
 ├── tests/
 │   ├── run_tests.sh            database tests TC01–TC71
 │   ├── web/                    application tests TA01–TA32 (pytest)
-│   ├── browser_walkthrough.py  browser tests TB01–TB10 + screenshots
+│   ├── browser_walkthrough.py  browser tests TB01–TB13 + screenshots
 │   ├── test_cases.md           every test case described
 │   └── README.md
 └── docs/
@@ -162,7 +162,7 @@ All three suites build their own separate databases and never touch `smart_lab_e
 
 ```bash
 bash tests/run_tests.sh                     # database: expect "Passed: 71   Failed: 0   Total: 71"
-python -m pytest                            # application: expect "85 passed"
+python -m pytest                            # application: expect "98 passed"
 python tests/browser_walkthrough.py         # optional, needs: pip install playwright && python -m playwright install chromium
 ```
 

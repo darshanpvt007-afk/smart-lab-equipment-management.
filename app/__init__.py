@@ -58,11 +58,26 @@ def create_app(test_config=None):
     # ---- values available in every template ----
     @app.context_processor
     def template_globals():
-        return {"csrf_token": csrf_token, "today": today(), "reference_date_fixed": bool(app.config["REFERENCE_DATE"])}
+        return {"csrf_token": csrf_token, "today": today(), "nav_counts": nav_counts,
+                "reference_date_fixed": bool(app.config["REFERENCE_DATE"])}
 
     @app.template_filter("money")
     def money(value):
         return "-" if value is None else f"{value:,.2f}"
+
+    @app.template_filter("inr")
+    def inr(value):
+        """Whole rupees for summaries, e.g. 9700 -> '₹9,700'."""
+        return "₹0" if value is None else f"₹{value:,.0f}"
+
+    @app.template_filter("dmy")
+    def dmy(value, year=True):
+        """2026-10-07 -> '7 Oct 2026' (or '7 Oct' with year=False)."""
+        if value is None:
+            return "-"
+        if isinstance(value, str):          # dates read through a UNION come back as text
+            value = date.fromisoformat(value[:10])
+        return f"{value.day} {value:%b}" + (f" {value.year}" if year else "")
 
     @app.errorhandler(400)
     @app.errorhandler(404)
@@ -75,6 +90,23 @@ def create_app(test_config=None):
         return render_template("error.html", code=code, message=message), code
 
     return app
+
+
+def nav_counts():
+    """Live figures for the sidebar. Called from base.html; returns {} if the
+    database cannot be reached so that error pages still render."""
+    try:
+        return db.query_one(
+            "SELECT (SELECT COUNT(*) FROM equipment) AS equipment, "
+            "       (SELECT COUNT(*) FROM maintenance WHERE maintenance_status <> 'Completed') AS open_jobs, "
+            "       (SELECT COUNT(*) FROM equipment_allocation "
+            "         WHERE allocation_status = 'Issued' AND expected_return_date < %s) AS overdue, "
+            "       (SELECT COUNT(*) FROM student) AS students, "
+            "       (SELECT COUNT(*) FROM lab_staff) AS staff, "
+            "       (SELECT COUNT(*) FROM purchase WHERE purchase_status = 'Ordered') AS open_orders",
+            (today(),)) or {}
+    except Exception:          # noqa: BLE001 - the sidebar must never break a page
+        return {}
 
 
 def today():
