@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-head">
   <h1>Equipment categories</h1>
-  <a class="btn btn-primary" href="{{ url_for('categories.create') }}">+ Add category</a>
+  {% if can('manage_reference') %}<a class="btn btn-primary" href="{{ url_for('categories.create') }}">+ Add category</a>{% endif %}
 </div>
 <table>
   <thead><tr><th>Name</th><th>Description</th><th class="num">Equipment</th><th></th></tr></thead>
@@ -14,7 +14,7 @@
       <td><a href="{{ url_for('equipment.list_equipment', category_id=c.category_id) }}">{{ c.category_name }}</a></td>
       <td>{{ c.description or '' }}</td><td class="num">{{ c.equipment_count }}</td>
       <td class="row-actions">
-        <a class="btn btn-small" href="{{ url_for('categories.edit', category_id=c.category_id) }}">Edit</a>
+        {% if can('manage_reference') %}<a class="btn btn-small" href="{{ url_for('categories.edit', category_id=c.category_id) }}">Edit</a>{% endif %}
         {{ delete_button(url_for('categories.delete', category_id=c.category_id), c.category_name) }}
       </td>
     </tr>

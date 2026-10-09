@@ -38,7 +38,7 @@ These decisions are recorded in `DESIGN_DECISIONS.md` as D-20 to D-23.
 - **Statuses change only through workflows.** Equipment condition and availability, allocation status and maintenance status can never be edited in a plain form. They change only by issue, return, start or complete, each a stored procedure. This keeps the stored status consistent with the history, which test TA27 checks.
 - **The database is the final guard.** The app validates first for friendly messages, but every rule is still enforced by MySQL. The friendly-error mapping keeps those errors readable.
 - **The demo date is fixed.** `APP_REFERENCE_DATE` fixes "today" for the demonstration; without it the real date is used.
-- **No login.** The course requirements do not ask for one; it is listed as the first future enhancement.
+- **Sign-in added for deployment.** Not required by the course, but needed before the app is put online. It has four roles and is described in D-24 and `SECURITY.md`.
 
 ## 4. Demonstrating the prototype
 
@@ -52,12 +52,12 @@ These decisions are recorded in `DESIGN_DECISIONS.md` as D-20 to D-23.
 
 | Limitation | Next step |
 |---|---|
-| No login; anyone who can open the app can change data | User accounts with roles and an audit column |
 | Overdue loans and due maintenance are shown, not sent | Scheduled e-mail reminders using the existing queries |
 | Department is free text | A department lookup table (needs ER approval) |
 | Items can only be kept or deleted | A Retired status that keeps the history |
 | Tested on Linux only | Run the suites on the lab's Windows machines |
-| Designed but not built: sign-in with roles, notification bell, bulk actions on the equipment list | Build on the same pages once login exists (bulk actions need a role check) |
+| Designed but not built: notification bell, bulk actions on the equipment list | Build on the same pages (bulk actions need a role check) |
+| No record-level audit trail of who changed what | An audit table written by the stored procedures |
 
 ## 6. Enterprise user interface
 

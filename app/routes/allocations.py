@@ -7,7 +7,7 @@ user early, field-level messages; the procedures are the final guard.
 """
 from datetime import timedelta
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, g, redirect, render_template, request, url_for
 
 from .. import db, today
 from ..validators import RETURN_CONDITIONS, Form
@@ -71,6 +71,7 @@ def render_issue_form(item, errors=None, status=200):
 def issue():
     if request.method == "GET":
         defaults = {"equipment_id": request.args.get("equipment_id", ""),
+                    "staff_id": (g.user or {}).get("staff_id") or "",
                     "allocation_date": today().isoformat(),
                     "expected_return_date": (today() + timedelta(days=7)).isoformat()}
         return render_issue_form(defaults)

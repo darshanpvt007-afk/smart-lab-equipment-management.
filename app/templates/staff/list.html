@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-head">
   <h1>Lab staff</h1>
-  <a class="btn btn-primary" href="{{ url_for('staff.create') }}">+ Add staff member</a>
+  {% if can('manage_reference') %}<a class="btn btn-primary" href="{{ url_for('staff.create') }}">+ Add staff member</a>{% endif %}
 </div>
 <table>
   <thead><tr><th>Name</th><th>Designation</th><th>Department</th><th>Contact</th><th>E-mail</th><th class="num">Issued</th><th class="num">Maintenance jobs</th><th></th></tr></thead>
@@ -15,7 +15,7 @@
       <td>{{ s.contact_number }}</td><td>{{ s.email }}</td>
       <td class="num">{{ s.issued }}</td><td class="num">{{ s.jobs }}</td>
       <td class="row-actions">
-        <a class="btn btn-small" href="{{ url_for('staff.edit', staff_id=s.staff_id) }}">Edit</a>
+        {% if can('manage_reference') %}<a class="btn btn-small" href="{{ url_for('staff.edit', staff_id=s.staff_id) }}">Edit</a>{% endif %}
         {{ delete_button(url_for('staff.delete', staff_id=s.staff_id), s.staff_name) }}
       </td>
     </tr>

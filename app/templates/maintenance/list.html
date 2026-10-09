@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-head">
   <h1>Maintenance</h1>
-  <a class="btn btn-primary" href="{{ url_for('maintenance.schedule') }}">+ Schedule maintenance</a>
+  {% if can('maintain') %}<a class="btn btn-primary" href="{{ url_for('maintenance.schedule') }}">+ Schedule maintenance</a>{% endif %}
 </div>
 <nav class="tabs">
   <a href="{{ url_for('maintenance.list_jobs') }}" class="{{ 'active' if not status }}">All</a>
@@ -22,7 +22,7 @@
       <td>{{ m.lab_name }}</td><td>{{ m.maintenance_type }}</td><td>{{ badge(m.maintenance_status) }}</td>
       <td class="num">{{ m.maintenance_cost|money }}</td><td>{{ m.performed_by }}</td>
       <td>
-        {% if m.maintenance_status == 'Scheduled' %}
+        {% if not can('maintain') %}{% elif m.maintenance_status == 'Scheduled' %}
           <form method="post" action="{{ url_for('maintenance.start', maintenance_id=m.maintenance_id) }}" class="inline">
             {{ csrf() }}<button class="btn btn-small" type="submit">Start</button>
           </form>

@@ -117,3 +117,12 @@
   });
   update();
 })();
+
+/* Confirmation for forms marked data-confirm (delete buttons). Kept out of
+   the HTML so the Content-Security-Policy can forbid inline scripts. */
+document.addEventListener("submit", function (e) {
+  var form = e.target;
+  if (form && form.dataset && form.dataset.confirm && !window.confirm(form.dataset.confirm)) {
+    e.preventDefault();
+  }
+});

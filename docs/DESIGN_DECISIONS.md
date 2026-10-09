@@ -262,7 +262,7 @@ Two more rules are enforced in the app:
 | Cross-site request forgery | A random per-session token must accompany every POST, and a POST without it is rejected with 400 (TA30). |
 | Cross-site scripting | Jinja escapes every value (TA31). |
 | Credentials | Credentials come from environment variables or the git-ignored `.env`; nothing is hard-coded. `SECRET_KEY` falls back to a random value per start. |
-| Authentication | Not implemented. The course does not require it, and it is listed as a next step. |
+| Authentication | Added for deployment: see D-24 and docs/SECURITY.md. |
 
 ## D-23 Enterprise user interface without new tables or dependencies
 
@@ -276,4 +276,20 @@ The interface was redesigned after Review 3's first prototype (mockup first, the
 | CSV cells starting with `= + - @` are prefixed with `'` | Prevents spreadsheet formula injection when the export is opened in Excel (TA44). |
 | Badges keep the database terms (Allocated, Under Maintenance) | The screens match the schema and the SQL shown on the Reports page. |
 | No web fonts, CSS framework or JavaScript framework | Works offline in the lab; IBM Plex is used if installed, otherwise the system font. `app.js` only adds conveniences; every page works without it. |
-| Signed-in user shown as "Lab desk · No sign-in (prototype)" | The mockup showed a named user, but there is no login yet (D-22); the screen must not suggest otherwise. |
+| Signed-in user shown in the top bar | Originally "Lab desk · No sign-in (prototype)" because there was no login; since D-24 it shows the real account and its role. |
+
+## D-24 Sign-in, roles and deployment security
+
+Added to make a public student demo safe. The 10 ER tables are unchanged; the additions are listed here.
+
+| Choice | Reason |
+|---|---|
+| Two new tables, `app_user` and `login_attempt` (`sql/13_app_users.sql`), outside the Review 1 ER model | They belong to the application's security layer, not to the laboratory domain. Keeping them separate leaves the ER design, normalisation and Review 2 tests unchanged. TC02-TC05 still check exactly the 10 domain tables. |
+| `app_user.staff_id` is an optional link to `lab_staff`, `ON DELETE SET NULL` | Not every account is a staff member (e.g. an external examiner). Deleting a staff record must not delete or block a login account. It is the only foreign key that is not RESTRICT, and it protects no history. |
+| Migration only uses `CREATE TABLE IF NOT EXISTS`, indexes inside the table definition | Safe to re-run and to apply to a database holding real data (TC76-TC77, TA73). |
+| Four roles, eight permissions, one map from every route to a permission; unlisted routes refused | Fail closed: a new page is blocked until someone decides who may use it (TA55, TA58). |
+| scrypt password hashes from werkzeug (already a Flask dependency) | A standard, salted, deliberately slow hash; no new library. |
+| Throttling stored in the database, not in memory | Works with several gunicorn workers and survives restarts. |
+| `session_epoch` counter instead of server-side sessions | Lets a password change or deactivation end every session of an account while keeping Flask's signed-cookie sessions (no extra session store). |
+| Production refuses to start with missing or unsafe settings | A misconfigured deployment fails loudly at start-up instead of running with a guessable key or the root account. |
+| Three MySQL accounts (runtime, migration, test) | The web app cannot change the schema or the stored procedures even if it is compromised (verified, docs/SECURITY.md section 5). |

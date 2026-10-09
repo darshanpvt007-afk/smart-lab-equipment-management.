@@ -492,7 +492,15 @@ FLOAT is binary floating point: values such as 0.10 cannot be stored exactly, an
 
 # Part B: Review 3 web application demonstration
 
-The demo takes about 10 minutes. Start from a freshly built database (Part A, "Before the review", including script 12). Put `APP_REFERENCE_DATE=2026-10-10` in `.env`, run `python run.py`, and open http://127.0.0.1:5000.
+The demo takes about 10 minutes. Start from a freshly built database (Part A, "Before the review", including scripts 12 and 13). Put `APP_REFERENCE_DATE=2026-10-10` in `.env`.
+
+Before the review, create two accounts:
+- `flask --app run create-user --username demo.admin --role admin`
+- `flask --app run create-user --username demo.tech --role technician`
+
+Choose the passwords yourself and keep them off the slides. Then run `python run.py`, open http://127.0.0.1:5000 and sign in as `demo.admin`.
+
+Optional extra step at the end: sign out, sign in as `demo.tech` and show that "Issue equipment" is missing and that `/allocations/new` returns Error 403. The server checks the role, not just the menu (TB14, TA56).
 
 Every expected result below is checked by an automated test (IDs in brackets) on the same sample data.
 
@@ -532,6 +540,12 @@ The first locks the equipment row. The second waits, then sees "Allocated" and i
 
 **Why can't I edit an item's availability on the equipment form?**
 Availability must agree with the allocation and maintenance history. It changes only through issue, return, start and complete, so the stored status can never contradict the history (DESIGN_DECISIONS D-21).
+
+**How are passwords and roles handled?**
+Passwords are stored only as salted scrypt hashes, never as text. Each account has one of four roles. Before every request, the server looks up the permission that route needs; a route with no rule is refused. Hiding buttons is only for convenience. After 5 wrong passwords that username is locked for 15 minutes (docs/SECURITY.md).
+
+**Why does the web app not connect as root?**
+It uses `smartlab_app`, which can only read and write rows and call the procedures. Even if the app were compromised, it could not drop tables or change the procedures. Migrations use a separate account.
 
 **What is the CSRF token for?**
 It stops another website from making your browser submit a form to this app. Every form carries a random token tied to your session, and a POST without it is rejected (TA30).

@@ -14,7 +14,7 @@
   </div>
   <div class="actions">
     <a class="btn" href="{{ url_for('equipment.export_csv') }}">Export inventory</a>
-    <a class="btn btn-primary" href="{{ url_for('allocations.issue') }}">Issue equipment</a>
+    {% if can('issue_return') %}<a class="btn btn-primary" href="{{ url_for('allocations.issue') }}">Issue equipment</a>{% endif %}
   </div>
 </div>
 
@@ -61,7 +61,7 @@
           <td>{{ r.issued_by }}</td>
           <td class="nowrap">{{ r.expected_return_date|dmy }}</td>
           <td class="num"><span class="pill pill-overdue">{{ r.days_overdue }} d</span></td>
-          <td class="num"><a class="btn btn-small" href="{{ url_for('allocations.return_equipment', allocation_id=r.allocation_id) }}">Record return</a></td>
+          {% if can('issue_return') %}<td class="num"><a class="btn btn-small" href="{{ url_for('allocations.return_equipment', allocation_id=r.allocation_id) }}">Record return</a></td>{% endif %}
         </tr>
       {% endfor %}
       </tbody>
