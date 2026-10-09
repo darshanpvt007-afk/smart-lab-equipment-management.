@@ -118,6 +118,14 @@ URLS = {
     "reports.index": ("GET", "/reports/"), "reports.show": ("GET", "/reports/overdue"),
     "users.list_users": ("GET", "/users/"), "users.create": ("GET", "/users/new"),
     "users.edit": ("GET", "/users/1/edit"), "users.reset_password": ("POST", "/users/2/password"),
+    "users.student_access": ("GET", "/users/students"),
+    "users.enable_students": ("POST", "/users/students/enable"),
+    "users.student_account_action": ("POST", "/users/students/3"),
+    "requests.list_requests": ("GET", "/requests/"),
+    "requests.approve": ("POST", "/requests/1/approve"), "requests.reject": ("POST", "/requests/1/reject"),
+    "auth.activate": ("GET", "/activate"),
+    "portal.home": ("GET", "/my/"), "portal.new_request": ("GET", "/my/request/5"),
+    "portal.cancel_request": ("POST", "/my/requests/1/cancel"),
 }
 
 ALL = {"admin", "lab_manager", "inventory_staff", "technician"}
@@ -133,6 +141,7 @@ EXPECTED = {
     "manage_users": {"admin"},
     auth.SIGNED_IN: ALL,
     auth.PUBLIC: ALL,
+    auth.STUDENT: set(),             # staff never use the student portal
 }
 
 
@@ -140,7 +149,7 @@ def test_ta55_every_route_has_a_rule_and_a_sample_url(app):
     endpoints = {rule.endpoint for rule in app.url_map.iter_rules()}
     assert endpoints == set(auth.ENDPOINT_PERMISSIONS) == set(URLS)
     assert {k: v for k, v in auth.PERMISSIONS.items()} == {k: v for k, v in EXPECTED.items()
-                                                          if k not in (auth.PUBLIC, auth.SIGNED_IN)}
+                                                          if k not in (auth.PUBLIC, auth.SIGNED_IN, auth.STUDENT)}
 
 
 @pytest.mark.parametrize("role", sorted(ALL))
@@ -372,10 +381,12 @@ def test_ta72_headers_errors_size_limit_and_health(app, client, anon):
 
 
 # ---- migration and test-database safety ----------------------------------------------
-def test_ta73_migration_13_is_additive_and_safe_to_rerun(mysql_cli_args, sql, accounts):
-    before = {t: sql(f"SELECT COUNT(*) AS n FROM {t}")[0]["n"]
-              for t in ("student", "equipment", "equipment_allocation", "maintenance", "app_user")}
-    migration = (ROOT / "sql" / "13_app_users.sql").read_text(encoding="utf-8")
+@pytest.mark.parametrize("migration_file", ["13_app_users.sql", "15_student_portal.sql"])
+def test_ta73_migrations_are_additive_and_safe_to_rerun(mysql_cli_args, sql, accounts, migration_file):
+    sql("INSERT INTO student_account (student_id, activation_expires_at) VALUES (1, NOW() + INTERVAL 1 DAY)")
+    tables = ("student", "equipment", "equipment_allocation", "maintenance", "app_user", "student_account")
+    before = {t: sql(f"SELECT COUNT(*) AS n FROM {t}")[0]["n"] for t in tables}
+    migration = (ROOT / "sql" / migration_file).read_text(encoding="utf-8")
     statements = [line for line in migration.splitlines() if not line.lstrip().startswith("--")]
     assert not re.search(r"^\s*(DROP|TRUNCATE|DELETE|UPDATE|ALTER|INSERT|REPLACE)\b",
                          "\n".join(statements), re.I | re.M)
@@ -384,11 +395,11 @@ def test_ta73_migration_13_is_additive_and_safe_to_rerun(mysql_cli_args, sql, ac
                                 text=True, capture_output=True)
         assert result.returncode == 0, result.stderr
     after = {t: sql(f"SELECT COUNT(*) AS n FROM {t}")[0]["n"] for t in before}
-    assert after == before and before["app_user"] == 4
+    assert after == before and before["app_user"] == 4 and before["student_account"] == 1
 
 
 def test_ta74_tests_cannot_touch_the_development_database():
     assert TEST_DB != DEV_DB and TEST_DB.endswith("_apptest")
-    assert "13_app_users.sql" in BUILD_FILES
+    assert "13_app_users.sql" in BUILD_FILES and "15_student_portal.sql" in BUILD_FILES
     walkthrough = (ROOT / "tests" / "browser_walkthrough.py").read_text(encoding="utf-8")
     assert 'TEST_DB = "smart_lab_equipment_apptest"' in walkthrough

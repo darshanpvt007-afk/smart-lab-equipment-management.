@@ -51,11 +51,17 @@ PERMISSIONS = {
 }
 
 PUBLIC = "public"          # no sign-in needed
-SIGNED_IN = "signed_in"    # any active account (own password, sign-out)
+SIGNED_IN = "signed_in"    # any active account, staff or student (own password, sign-out)
+STUDENT = "student"        # signed-in STUDENTS only (the "My equipment" portal)
+
+# Students are not a staff role: they never get any permission above. They
+# sign in with their register number and only see their own records
+# (docs/SECURITY.md section 7).
 
 ENDPOINT_PERMISSIONS = {
     "static": PUBLIC,
     "auth.login": PUBLIC,
+    "auth.activate": PUBLIC,
     "health.healthz": PUBLIC,
     "auth.logout": SIGNED_IN,
     "auth.change_password": SIGNED_IN,
@@ -104,6 +110,17 @@ ENDPOINT_PERMISSIONS = {
     "users.create": "manage_users",
     "users.edit": "manage_users",
     "users.reset_password": "manage_users",
+    "users.student_access": "manage_users",
+    "users.enable_students": "manage_users",
+    "users.student_account_action": "manage_users",
+
+    "requests.list_requests": "issue_return",
+    "requests.approve": "issue_return",
+    "requests.reject": "issue_return",
+
+    "portal.home": STUDENT,
+    "portal.new_request": STUDENT,
+    "portal.cancel_request": STUDENT,
 }
 
 # ---------------------------------------------------------------------------
@@ -180,12 +197,21 @@ def record_attempt(username, ip, succeeded):
 # Sessions
 # ---------------------------------------------------------------------------
 def start_session(user):
-    """Called after a successful login: drop everything in the old session
-    (including its CSRF token) and start a fresh one."""
+    """Called after a successful staff login: drop everything in the old
+    session (including its CSRF token) and start a fresh one."""
     session.clear()
     session.permanent = True
     session["uid"] = user["user_id"]
     session["epoch"] = user["session_epoch"]
+    session["csrf_token"] = secrets.token_hex(16)
+
+
+def start_student_session(account):
+    """Same as start_session, for a student account."""
+    session.clear()
+    session.permanent = True
+    session["sid"] = account["student_id"]
+    session["sepoch"] = account["session_epoch"]
     session["csrf_token"] = secrets.token_hex(16)
 
 
@@ -194,18 +220,30 @@ def end_session():
 
 
 def load_user():
-    """Put the signed-in, still-active account in g.user (or None)."""
+    """Put the signed-in, still-active staff account in g.user, or the
+    signed-in student in g.student (at most one of them; both None when
+    nobody is signed in)."""
     g.user = None
-    uid = session.get("uid")
-    if uid is None:
-        return
-    user = db.query_one(
-        "SELECT user_id, username, role, staff_id, is_active, session_epoch "
-        "FROM app_user WHERE user_id = %s", (uid,))
-    if user is None or not user["is_active"] or user["session_epoch"] != session.get("epoch"):
-        end_session()          # deactivated, deleted, or password changed elsewhere
-        return
-    g.user = user
+    g.student = None
+    if session.get("uid") is not None:
+        user = db.query_one(
+            "SELECT user_id, username, role, staff_id, is_active, session_epoch "
+            "FROM app_user WHERE user_id = %s", (session["uid"],))
+        if user is None or not user["is_active"] or user["session_epoch"] != session.get("epoch"):
+            end_session()          # deactivated, deleted, or password changed elsewhere
+            return
+        g.user = user
+    elif session.get("sid") is not None:
+        student = db.query_one(
+            "SELECT a.student_id, a.is_active, a.session_epoch, a.password_hash IS NOT NULL AS activated, "
+            "       s.student_name, s.register_number, s.department, s.year_of_study "
+            "FROM student_account a JOIN student s ON s.student_id = a.student_id "
+            "WHERE a.student_id = %s", (session["sid"],))
+        if (student is None or not student["is_active"] or not student["activated"]
+                or student["session_epoch"] != session.get("sepoch")):
+            end_session()
+            return
+        g.student = student
 
 
 def can(permission, user=None):
@@ -237,11 +275,21 @@ def enforce_access():
     if needed == PUBLIC:
         return None
     load_user()
-    if g.user is None:
+    if g.user is None and g.student is None:
         if request.method == "GET":
             return redirect(url_for("auth.login", next=request.full_path.rstrip("?")))
         abort(401)
-    if needed != SIGNED_IN and not can(needed):
+    if needed == SIGNED_IN:
+        return None
+    if needed == STUDENT:
+        if g.student is None:          # staff never use the student portal
+            abort(403)
+        return None
+    if g.student is not None:          # students never reach staff pages
+        if endpoint == "dashboard.index" and request.method == "GET":
+            return redirect(url_for("portal.home"))
+        abort(403)
+    if not can(needed):
         abort(403)
     return None
 
@@ -252,7 +300,8 @@ def init_app(app):
 
     @app.context_processor
     def auth_globals():
-        return {"can": can, "current_user": g.get("user"), "role_labels": ROLES}
+        return {"can": can, "current_user": g.get("user"), "current_student": g.get("student"),
+                "role_labels": ROLES}
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +314,8 @@ def validate_new_account(username, role, password, staff_id=None):
     if not re.fullmatch(USERNAME_RE, username or ""):
         errors["username"] = ("Username must be 3-40 characters: lower-case letters, "
                               "digits, dot, dash or underscore.")
+    elif looks_like_register_number(username):
+        errors["username"] = "Staff usernames must not look like a student register number."
     if role not in ROLES:
         errors["role"] = "Choose a role."
     problem = password_problem(password or "", username or "")
@@ -283,3 +334,37 @@ def active_admin_count(excluding_user_id=None):
     return db.query_one(
         "SELECT COUNT(*) AS n FROM app_user WHERE role = 'admin' AND is_active "
         "AND user_id <> %s", (excluding_user_id or 0,))["n"]
+
+
+# ---------------------------------------------------------------------------
+# Student accounts (self-activation; docs/SECURITY.md section 7)
+# ---------------------------------------------------------------------------
+ACTIVATION_DAYS = 14
+
+
+def looks_like_register_number(text):
+    import re
+    from .validators import REGISTER_RE
+    return bool(REGISTER_RE.match((text or "").strip().upper())) and bool(re.fullmatch(r"[0-9A-Za-z]+", text or ""))
+
+
+def find_student_account(register_number):
+    return db.query_one(
+        "SELECT a.*, s.register_number, s.email FROM student_account a "
+        "JOIN student s ON s.student_id = a.student_id WHERE s.register_number = %s",
+        (register_number.strip().upper(),))
+
+
+def open_activation(student_ids):
+    """Allow these students to (re-)activate within ACTIVATION_DAYS. Clears any
+    old password and signs the account out everywhere. Returns rows affected."""
+    count = 0
+    for sid in student_ids:
+        count += 1
+        db.execute(
+            "INSERT INTO student_account (student_id, password_hash, activation_expires_at) "
+            "VALUES (%s, NULL, NOW() + INTERVAL %s DAY) "
+            "ON DUPLICATE KEY UPDATE password_hash = NULL, is_active = TRUE, activated_at = NULL, "
+            "  activation_expires_at = NOW() + INTERVAL %s DAY, session_epoch = session_epoch + 1",
+            (sid, ACTIVATION_DAYS, ACTIVATION_DAYS))
+    return count

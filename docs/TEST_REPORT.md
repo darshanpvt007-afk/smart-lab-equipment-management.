@@ -424,3 +424,24 @@ Passed: 13   Failed: 0   Total: 13
 - A real hosting provider (nothing was provisioned), real HTTPS certificates, and hosted MySQL over TLS (`DB_SSL_CA` is implemented but untested).
 - Response-time equality between unknown usernames and wrong passwords (the code checks a dummy hash, but timing was not measured).
 - Load or concurrency beyond the existing database tests TC53–TC54.
+
+---
+
+# Student portal test results
+
+| Item | Value |
+|---|---|
+| Date of run | 2026-10-09 (UTC) |
+| Database suite | **83 passed, 0 failed** (adds TC79–TC83 for `sql/15_student_portal.sql`) |
+| Application suite | **150 passed, 0 failed** (adds TA80–TA92 and the file-15 case of TA73) |
+| Browser walkthrough | **19 passed, 0 failed** (adds TB16–TB18), run in a scratch copy; committed screenshots not overwritten |
+| Development database | Not touched |
+
+**Mutation checks.** In scratch copies, one protection was removed at a time and `test_student_portal.py` run:
+- cancelling no longer limited to the student's own requests: 1 failed (TA86);
+- students allowed past the staff-page check: 1 failed (TA84). `can()` still refused every staff permission, so access stayed blocked; only the dashboard redirect changed;
+- activation ignoring the e-mail address: 1 failed (TA81).
+
+**Found while building.** MySQL 8.0.46 refused the first version of migration 15 (error 3823): `allocation_id` was used in a CHECK and in a foreign key with `ON UPDATE CASCADE`. The key now uses `ON UPDATE RESTRICT`, since allocation ids never change.
+
+**Not tested.** Activation over e-mail links (not implemented); many students requesting the same item at the same time beyond the database UNIQUE index (TC82).

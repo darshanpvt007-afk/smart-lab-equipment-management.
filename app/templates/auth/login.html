@@ -4,12 +4,12 @@
 {% block content %}
 <form method="post" action="{{ url_for('auth.login') }}" class="panel login-card" autocomplete="on">
   <h1>Sign in</h1>
-  <p class="page-sub">Use the account your lab administrator created for you.</p>
+  <p class="page-sub">Staff: your username. Students: your register number (e.g. 24BCE1012).</p>
   {{ csrf() }}
   <input type="hidden" name="next" value="{{ next }}">
   {% if error %}<p class="error login-error" role="alert">{{ error }}</p>{% endif %}
   <div class="field">
-    <label for="username">Username</label>
+    <label for="username">Username or register number</label>
     <input id="username" name="username" type="text" required maxlength="40" autocomplete="username"
            autocapitalize="none" spellcheck="false" value="{{ username or '' }}" autofocus>
   </div>
@@ -18,5 +18,6 @@
     <input id="password" name="password" type="password" required maxlength="128" autocomplete="current-password">
   </div>
   <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+  <p class="login-alt">Student signing in for the first time? <a href="{{ url_for('auth.activate') }}">Activate your account</a></p>
 </form>
 {% endblock %}

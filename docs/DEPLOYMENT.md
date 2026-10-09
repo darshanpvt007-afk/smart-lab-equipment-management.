@@ -46,7 +46,7 @@ On a hosted MySQL, the provider's admin user plays the role of root. Change `'lo
 **New database.** Run these as `smartlab_admin`:
 ```bash
 for f in 01_create_database 02_create_tables 03_insert_sample_data 08_create_views \
-         11_transaction_procedures 12_maintenance_procedures 13_app_users; do
+         11_transaction_procedures 12_maintenance_procedures 13_app_users 15_student_portal; do
   mysql -u smartlab_admin -p < sql/$f.sql
 done
 ```
@@ -56,6 +56,7 @@ Skip `03_insert_sample_data.sql` if you want an empty inventory instead of the d
 ```bash
 mysqldump -u smartlab_admin -p --single-transaction --routines --no-tablespaces smart_lab_equipment_db > backup-before-13.sql
 mysql -u smartlab_admin -p < sql/13_app_users.sql            # safe to re-run; never drops or changes data
+mysql -u smartlab_admin -p < sql/15_student_portal.sql       # student accounts + requests; also additive
 ```
 For a database built before the register-number check, also run the `ALTER TABLE` command from README section 5.
 
@@ -71,6 +72,8 @@ flask --app wsgi create-user --username your.name --role admin
 ```
 
 Then sign in, open **Users**, and create one account per person with the least role they need (docs/SECURITY.md section 2).
+
+**Student accounts.** On **Users → Student sign-in**, open activation for the students who should use the site. They have 14 days to activate at `https://<your-site>/activate` with their register number and the e-mail on record. Tell them the address yourself; the app sends no e-mail. Read the self-activation risk in docs/SECURITY.md section 6 before opening activation on a public site.
 
 ## 5. Environment variables (set in the host's dashboard)
 
@@ -143,7 +146,11 @@ The first attempt failed because the admin account lacked `SHOW_ROUTINE` (the ba
 ## 9. Undoing the deployment changes
 
 Everything added for deployment is additive:
-- The two tables from `13_app_users.sql` can be dropped without touching the inventory data: `DROP TABLE login_attempt, app_user;`. After that nobody can sign in until the migration is run again.
+- The tables from `15_student_portal.sql` and `13_app_users.sql` can be dropped, in that order, without touching the inventory data:
+  - `DROP TABLE equipment_request, student_account;`
+  - `DROP TABLE login_attempt, app_user;`
+
+  This loses the requests and accounts, and nobody can sign in until the migrations are run again.
 - The database accounts can be removed with `DROP USER`.
 
 No existing table, column or row was changed.

@@ -92,3 +92,61 @@ def reset_password(user_id):
     flash(f"Password for {user['username']} reset; that account has been signed out everywhere.",
           "success")
     return redirect(url_for("users.list_users"))
+
+
+# ---- student sign-in (self-activation) ----------------------------------------
+@bp.route("/students")
+def student_access():
+    rows = db.query_all(
+        "SELECT s.student_id, s.student_name, s.register_number, s.department, s.year_of_study, "
+        "       a.student_id IS NOT NULL AS has_account, a.is_active, a.last_login_at, "
+        "       a.password_hash IS NOT NULL AS activated, a.activation_expires_at, "
+        "       a.activation_expires_at > NOW() AS activation_open "
+        "FROM student s LEFT JOIN student_account a ON a.student_id = s.student_id "
+        "ORDER BY s.register_number")
+    for r in rows:
+        if not r["has_account"]:
+            r["state"] = "No account"
+        elif not r["is_active"]:
+            r["state"] = "Deactivated"
+        elif r["activated"]:
+            r["state"] = "Active"
+        elif r["activation_open"]:
+            r["state"] = "Waiting for activation"
+        else:
+            r["state"] = "Activation expired"
+    return render_template("users/students.html", rows=rows, days=auth.ACTIVATION_DAYS)
+
+
+@bp.route("/students/enable", methods=["POST"])
+def enable_students():
+    """Open activation for every student who has no account yet."""
+    ids = [r["student_id"] for r in db.query_all(
+        "SELECT s.student_id FROM student s LEFT JOIN student_account a ON a.student_id = s.student_id "
+        "WHERE a.student_id IS NULL")]
+    count = auth.open_activation(ids)
+    flash(f"Activation opened for {count} student(s) for {auth.ACTIVATION_DAYS} days." if count
+          else "Every student already has an account.", "success")
+    return redirect(url_for("users.student_access"))
+
+
+@bp.route("/students/<int:student_id>", methods=["POST"])
+def student_account_action(student_id):
+    student = db.query_one("SELECT student_id, register_number FROM student WHERE student_id = %s",
+                           (student_id,))
+    if student is None:
+        abort(404, "Student not found.")
+    action = request.form.get("action", "")
+    if action == "open":
+        auth.open_activation([student_id])
+        flash(f"{student['register_number']}: activation opened for {auth.ACTIVATION_DAYS} days. "
+              "Any old password no longer works.", "success")
+    elif action in ("deactivate", "reactivate"):
+        if db.query_one("SELECT 1 AS x FROM student_account WHERE student_id = %s", (student_id,)) is None:
+            abort(404, "This student has no account.")
+        db.execute("UPDATE student_account SET is_active = %s, session_epoch = session_epoch + 1 "
+                   "WHERE student_id = %s", (action == "reactivate", student_id))
+        flash(f"{student['register_number']}: account {action}d.", "success")
+    else:
+        abort(400, "Unknown action.")
+    return redirect(url_for("users.student_access"))

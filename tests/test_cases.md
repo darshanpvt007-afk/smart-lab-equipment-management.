@@ -1,12 +1,12 @@
 # Test Cases
 
-These are the test definitions, 230 in all, and every case is automated under the same ID. Results of the latest run are in `docs/TEST_REPORT.md`.
+These are the test definitions, 252 in all, and every case is automated under the same ID. Results of the latest run are in `docs/TEST_REPORT.md`.
 
 | IDs | Suite | Run with |
 |---|---|---|
-| TC01–TC78 | Database tests (A–H Review 2; I Review 3; L register-number check; N sign-in migration) | `bash tests/run_tests.sh` |
-| TA01–TA32, TA40–TA48, TA50–TA74 (136 test functions with parameters) | Web application tests (J) | `python -m pytest` |
-| TB00–TB15 | Browser walkthrough (K) | `python tests/browser_walkthrough.py` |
+| TC01–TC83 | Database tests (A–H Review 2; I Review 3; L register-number check; N sign-in migration; P student portal) | `bash tests/run_tests.sh` |
+| TA01–TA32, TA40–TA48, TA50–TA74, TA80–TA92 (150 test functions with parameters) | Web application tests (J) | `python -m pytest` |
+| TB00–TB18 | Browser walkthrough (K) | `python tests/browser_walkthrough.py` |
 
 The automated runner works on a separate database, `smart_lab_equipment_test`, rebuilt from the scripts. To try a case by hand, run its SQL in the `mysql` client against `smart_lab_equipment_db`:
 - Cases marked **(rolls back)** or **(rejected)** leave the data unchanged.
@@ -215,6 +215,9 @@ The walkthrough uses a real Chromium browser against a freshly built test databa
 | TB00 | Open `/equipment/` signed out; wrong password; right password | Sign-in page; "Invalid username or password."; back on the Equipment page |
 | TB14 | Sign in as a technician | No "Issue equipment" link; `/allocations/new` shows Error 403; maintenance Start buttons visible |
 | TB15 | Sign out from the account menu | "You have signed out."; the dashboard asks to sign in again |
+| TB16 | Admin opens activation for 25BCE1103; the student activates, then requests DMM-17B-0006 | "My equipment" with no other students' names; "Request … sent" |
+| TB17 | Staff approve the request on Student requests | "approved: equipment issued (allocation #…)" |
+| TB18 | Student reloads My equipment, then opens `/equipment/` | DMM-17B-0006 under "On loan to me"; Error 403 |
 
 ## L. Register-number format (database, `tests/run_tests.sh`)
 
@@ -256,7 +259,7 @@ Every test uses fake accounts created in `smart_lab_equipment_apptest` (one per 
 | TA70 | `create-user` command | Create; duplicate; weak password | Created without echoing the password; duplicate and weak refused |
 | TA71 | Production configuration (×5) | Missing/short `SECRET_KEY`, `DB_USER=root`, no `DB_PASSWORD`, `COOKIE_SECURE=0` | `ConfigError` naming the setting, never its value |
 | TA72 | Headers, size limit, health, error page | Dashboard headers; 70 KB form; `/healthz` up and down; page with the database unavailable | CSP, nosniff, DENY, no-store, no inline handlers; 413; 200/503 JSON; 500 page without internal details |
-| TA73 | Migration safety | Run `13_app_users.sql` twice on a database with data | Only CREATE statements; every row count unchanged |
+| TA73 | Migration safety (×2: files 13 and 15) | Run each migration twice on a database with data | Only CREATE statements; every row count unchanged |
 | TA74 | Test-database guard | Inspect test settings | Tests and walkthrough target only `smart_lab_equipment_apptest` |
 
 ## N. Sign-in migration (database, `tests/run_tests.sh`)
@@ -267,3 +270,33 @@ Every test uses fake accounts created in `smart_lab_equipment_apptest` (one per 
 | TC76 | Re-run is safe | Add an account, run `13_app_users.sql` again | Runs without errors or warnings |
 | TC77 | …data preserved | Row counts of student, equipment, allocation, maintenance, app_user before and after | Identical |
 | TC78 | Account CHECKs | `INSERT` username `'Bad Name'`, role `'superuser'` | ERROR 3819 |
+
+## O. Student accounts and requests (`python -m pytest`, `tests/web/test_student_portal.py`)
+
+Students 1 (Aarav, 24BCE1012) and 2 (Diya, 24BEC1045) have activated test accounts; others are activated in the tests.
+
+| ID | Objective | Steps | Expected |
+|---|---|---|---|
+| TA80 | Activation | Admin opens activation for student 3; student activates (case-insensitive inputs); tries again | Signed in at `/my/`; scrypt hash stored; second activation refused |
+| TA81 | Activation refusals | Wrong e-mail; never opened; expired; deactivated; unknown; weak or mismatched password | Same generic message for the first five; no password stored |
+| TA82 | Student sign-in | Register number (any case); wrong password; account not yet activated | `/my/`; 401; 401 |
+| TA83 | Own data only | Aarav's and Diya's portals | Own loans and history; no other student's name, register number or e-mail; 11 available items |
+| TA84 | Staff pages refused | Every staff route as a student | 403 (dashboard redirects to `/my/`); nothing changed |
+| TA85 | Request rules | Valid; duplicate; until < from; past start; > 14 days; no purpose; unavailable item; 4th open request; unknown item | Pending row; 400 with message for each rule; 404 |
+| TA86 | Cancel | Diya cancels Aarav's request; Aarav cancels his own; cancels again | 404; Cancelled; "Only a pending request can be cancelled." |
+| TA87 | Approve | Technician tries; inventory staff approves; approves again | 403; allocation #21 via the procedure, item Allocated, request Approved; "already been decided" |
+| TA88 | Item gone; reject | Two requests for one item; approve both; reject the second with a note | Second refused with the procedure's message and stays Pending; Rejected with note shown to the student |
+| TA89 | Admin student sign-in | Open for all; reset an active student; deactivate; bad action; unknown student | 8 pending accounts; reset signs the student out and clears the password; deactivated cannot sign in; 400; 404 |
+| TA90 | Student throttling | 5 wrong passwords for 24BCE1012 | 6th attempt 429 |
+| TA91 | No collisions | Staff account named `24bce1012` | Refused |
+| TA92 | Student password change | Change on one device | Other session signed out |
+
+## P. Student portal migration (database, `tests/run_tests.sh`)
+
+| ID | Objective | Steps | Expected |
+|---|---|---|---|
+| TC79 | Migration 15 in the clean build | Look for the two tables | `2,0,0`: both exist and are empty |
+| TC80 | Re-run is safe | Add an account and a request, run `15_student_portal.sql` again | No errors or warnings |
+| TC81 | …data preserved | Row counts before and after | Identical |
+| TC82 | One pending request per item | Second pending request, same student and item | ERROR 1062 |
+| TC83 | Approved needs an allocation | Mark a request Approved without `allocation_id` | ERROR 3819 |

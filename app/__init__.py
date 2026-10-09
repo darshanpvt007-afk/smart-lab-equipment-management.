@@ -107,12 +107,12 @@ def create_app(test_config=None):
     db.init_app(app)
 
     from .routes import (allocations, categories, dashboard, equipment, health, labs,
-                         maintenance, purchases, reports, staff, students, suppliers,
-                         users)
+                         maintenance, portal, purchases, reports, requests, staff,
+                         students, suppliers, users)
     from .routes import auth as auth_routes
     for module in (dashboard, equipment, allocations, maintenance, students,
                    staff, labs, categories, suppliers, purchases, reports,
-                   auth_routes, users, health):
+                   auth_routes, users, health, portal, requests):
         app.register_blueprint(module.bp)
 
     # ---- CSRF protection: every POST form must carry the session token ----
@@ -236,7 +236,8 @@ def nav_counts():
             "         WHERE allocation_status = 'Issued' AND expected_return_date < %s) AS overdue, "
             "       (SELECT COUNT(*) FROM student) AS students, "
             "       (SELECT COUNT(*) FROM lab_staff) AS staff, "
-            "       (SELECT COUNT(*) FROM purchase WHERE purchase_status = 'Ordered') AS open_orders",
+            "       (SELECT COUNT(*) FROM purchase WHERE purchase_status = 'Ordered') AS open_orders, "
+            "       (SELECT COUNT(*) FROM equipment_request WHERE request_status = 'Pending') AS pending_requests",
             (today(),)) or {}
     except Exception:          # noqa: BLE001 - the sidebar must never break a page
         return {}

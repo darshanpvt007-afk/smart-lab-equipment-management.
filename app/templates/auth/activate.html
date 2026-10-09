@@ -1,0 +1,30 @@
+{% extends "bare.html" %}
+{% from "macros.html" import csrf with context %}
+{% block title %}Activate student account{% endblock %}
+{% block content %}
+<form method="post" class="panel login-card" autocomplete="off">
+  <h1>Activate your account</h1>
+  <p class="page-sub">Students only. Use the register number and e-mail address the lab has for you, then choose a password. This works once, after the lab has opened activation for you.</p>
+  {{ csrf() }}
+  {% if errors.get('form') %}<p class="error login-error" role="alert">{{ errors['form'] }}</p>{% endif %}
+  <div class="field">
+    <label for="register_number">Register number</label>
+    <input id="register_number" name="register_number" required maxlength="15" placeholder="e.g. 24BCE1012"
+           autocapitalize="characters" value="{{ item.register_number or '' }}">
+  </div>
+  <div class="field">
+    <label for="email">E-mail on record</label>
+    <input id="email" name="email" type="email" required maxlength="120" value="{{ item.email or '' }}">
+  </div>
+  {% for name, label in [('password', 'Choose a password'), ('confirm_password', 'Repeat the password')] %}
+    <div class="field {{ 'has-error' if errors.get(name) }}">
+      <label for="{{ name }}">{{ label }}</label>
+      <input id="{{ name }}" name="{{ name }}" type="password" required maxlength="128" autocomplete="new-password">
+      {% if name == 'password' %}<small class="help">At least 12 characters, not containing your register number.</small>{% endif %}
+      {% if errors.get(name) %}<small class="error">{{ errors[name] }}</small>{% endif %}
+    </div>
+  {% endfor %}
+  <button type="submit" class="btn btn-primary btn-block">Activate and sign in</button>
+  <p class="login-alt"><a href="{{ url_for('auth.login') }}">Back to sign in</a></p>
+</form>
+{% endblock %}
