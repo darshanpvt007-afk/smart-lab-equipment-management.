@@ -100,6 +100,7 @@ def call_procedure(name, args):
 UNIQUE_MESSAGES = {
     "uq_student_register_no": "A student with this register number already exists.",
     "uq_app_user_username": "An account with this username already exists.",
+    "uq_request_one_pending": "You already have a pending request for this item.",
     "uq_student_email": "A student with this e-mail address already exists.",
     "uq_lab_staff_email": "A staff member with this e-mail address already exists.",
     "uq_equipment_serial_number": "Equipment with this serial number already exists.",

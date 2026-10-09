@@ -1,7 +1,7 @@
-{% extends "base.html" if current_user else "bare.html" %}
+{% extends "base.html" if current_user else ("portal_base.html" if current_student else "bare.html") %}
 {% block title %}Error {{ code }}{% endblock %}
 {% block content %}
 <h1>Error {{ code }}</h1>
 <p>{{ message }}</p>
-<p><a class="btn" href="{{ url_for('dashboard.index') if current_user else url_for('auth.login') }}">{{ 'Back to the dashboard' if current_user else 'Go to sign in' }}</a></p>
+<p><a class="btn" href="{{ url_for('dashboard.index') if current_user else (url_for('portal.home') if current_student else url_for('auth.login')) }}">{{ 'Back to the dashboard' if current_user else ('Back to my equipment' if current_student else 'Go to sign in') }}</a></p>
 {% endblock %}

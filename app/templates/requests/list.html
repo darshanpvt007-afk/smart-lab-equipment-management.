@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge, csrf with context %}
+{% block title %}Requests{% endblock %}
+{% block content %}
+<div class="page-head"><div>
+  <h1>Student requests</h1>
+  <p class="page-sub">Approving issues the item now (sp_allocate_equipment), exactly like the Issue form.</p>
+</div></div>
+<nav class="tabs">
+  <a href="{{ url_for('requests.list_requests') }}" class="{{ 'active' if show == 'pending' }}">Pending</a>
+  <a href="{{ url_for('requests.list_requests', show='all') }}" class="{{ 'active' if show == 'all' }}">All</a>
+</nav>
+<section class="panel table-panel">
+<div class="table-scroll">
+<table class="data">
+  <thead><tr><th>#</th><th>Student</th><th>Equipment</th><th>Wanted</th><th>Purpose</th><th>Status</th><th>Decision</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.request_id }}</td>
+      <td><span class="strong">{{ r.student_name }}</span><small>{{ r.register_number }}{% if r.student_overdue %} · <span class="warn-text">{{ r.student_overdue }} overdue</span>{% endif %}</small></td>
+      <td><span class="strong">{{ r.equipment_name }}</span><small class="mono">{{ r.serial_number }}</small>
+          {% if r.request_status == 'Pending' and r.availability_status != 'Available' %}<small class="warn-text">Now {{ r.availability_status }}</small>{% endif %}</td>
+      <td>{{ r.requested_from|dmy(false) }} → {{ r.requested_until|dmy }}</td>
+      <td>{{ r.purpose }}</td>
+      <td>{{ badge(r.request_status) }}</td>
+      <td>
+        {% if r.request_status == 'Pending' %}
+          <form method="post" action="{{ url_for('requests.approve', request_id=r.request_id) }}" class="decide">
+            {{ csrf() }}
+            <select name="staff_id" aria-label="Issued by" required>
+              {% for s in staff %}<option value="{{ s.id }}" {{ 'selected' if s.id == default_staff }}>{{ s.name }}</option>{% endfor %}
+            </select>
+            <input type="date" name="expected_return_date" aria-label="Due date" value="{{ [r.requested_until, today]|max }}" min="{{ today.isoformat() }}" required>
+            <button class="btn btn-small btn-primary" type="submit">Approve &amp; issue</button>
+          </form>
+          <form method="post" action="{{ url_for('requests.reject', request_id=r.request_id) }}" class="decide">
+            {{ csrf() }}
+            <input name="decision_note" maxlength="255" placeholder="Reason (optional)" aria-label="Reason">
+            <button class="btn btn-small" type="submit">Reject</button>
+          </form>
+        {% else %}
+          <small>{{ r.decided_by or (r.request_status == 'Cancelled' and 'by student') or '' }}{% if r.decided_at %} · {{ r.decided_at.strftime('%d %b %Y') }}{% endif %}</small>
+          {% if r.allocation_id %}<small>Allocation #{{ r.allocation_id }}</small>{% endif %}
+          {% if r.decision_note %}<small>“{{ r.decision_note }}”</small>{% endif %}
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}<tr><td colspan="7" class="empty">No {{ 'pending ' if show == 'pending' }}requests.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+</section>
+{% endblock %}

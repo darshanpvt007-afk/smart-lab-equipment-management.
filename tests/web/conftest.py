@@ -24,7 +24,7 @@ DEV_DB = "smart_lab_equipment_db"
 TEST_DB = "smart_lab_equipment_apptest"
 BUILD_FILES = ["01_create_database.sql", "02_create_tables.sql", "03_insert_sample_data.sql",
                "08_create_views.sql", "11_transaction_procedures.sql", "12_maintenance_procedures.sql",
-               "13_app_users.sql"]
+               "13_app_users.sql", "15_student_portal.sql"]
 
 # Safety: these tests DROP and rebuild their database before every test, so
 # refuse to run unless the target is clearly the dedicated test database.
@@ -136,6 +136,27 @@ def client(app, accounts):
     """Signed in as an administrator (all permissions), as the existing
     workflow tests expect."""
     return Client(app.test_client(), accounts["admin"])
+
+
+@pytest.fixture
+def student_accounts(sql, password_hash):
+    """Activated accounts for students 1 (Aarav, 24BCE1012) and 2 (Diya, 24BEC1045)."""
+    for sid in (1, 2):
+        sql("INSERT INTO student_account (student_id, password_hash, activated_at) VALUES (%s, %s, NOW())",
+            (sid, password_hash))
+    return {"aarav": 1, "diya": 2}
+
+
+@pytest.fixture
+def student_client(app, student_accounts):
+    """student_client('aarav') -> a client signed in as that student."""
+    def make(name):
+        c = Client(app.test_client())
+        with c.raw.session_transaction() as sess:
+            sess["sid"] = student_accounts[name]
+            sess["sepoch"] = 0
+        return c
+    return make
 
 
 @pytest.fixture

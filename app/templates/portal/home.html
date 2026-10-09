@@ -1,0 +1,96 @@
+{% extends "portal_base.html" %}
+{% from "macros.html" import badge, csrf with context %}
+{% block title %}My equipment{% endblock %}
+{% block content %}
+{% set current = loans|selectattr('allocation_status', 'equalto', 'Issued')|list %}
+{% set past = loans|rejectattr('allocation_status', 'equalto', 'Issued')|list %}
+<div class="page-head">
+  <div>
+    <h1>My equipment</h1>
+    <p class="page-sub">{{ current_student.student_name }} · {{ current_student.register_number }} · {{ current_student.department }}, year {{ current_student.year_of_study }}</p>
+  </div>
+</div>
+
+<section class="panel">
+  <header class="panel-head"><h2>On loan to me ({{ current|length }})</h2></header>
+  {% if current %}
+  <table class="data">
+    <thead><tr><th>Equipment</th><th>Issued</th><th>Due</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for a in current %}
+      <tr>
+        <td><span class="strong">{{ a.equipment_name }}</span><small class="mono">{{ a.serial_number }}</small></td>
+        <td>{{ a.allocation_date|dmy }}</td>
+        <td>{{ a.expected_return_date|dmy }}</td>
+        <td>{% if a.days_overdue %}<span class="pill pill-overdue">Overdue {{ a.days_overdue }} day{{ 's' if a.days_overdue != 1 }}</span>
+            <small>Please return it to the lab as soon as possible.</small>{% else %}{{ badge('Issued') }}{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="empty">You have nothing on loan.</p>{% endif %}
+</section>
+
+<section class="panel portal-section">
+  <header class="panel-head"><h2>My requests</h2><small>{{ pending }} of {{ max_pending }} open</small></header>
+  {% if requests %}
+  <table class="data">
+    <thead><tr><th>Equipment</th><th>Wanted</th><th>Purpose</th><th>Status</th><th class="num"></th></tr></thead>
+    <tbody>
+    {% for r in requests %}
+      <tr>
+        <td><span class="strong">{{ r.equipment_name }}</span><small class="mono">{{ r.serial_number }}</small></td>
+        <td>{{ r.requested_from|dmy(false) }} → {{ r.requested_until|dmy }}</td>
+        <td>{{ r.purpose }}</td>
+        <td>{{ badge(r.request_status) }}{% if r.decision_note %}<small>“{{ r.decision_note }}”</small>{% endif %}</td>
+        <td class="num">{% if r.request_status == 'Pending' %}
+          <form method="post" action="{{ url_for('portal.cancel_request', request_id=r.request_id) }}" class="inline"
+                data-confirm="Cancel this request?">{{ csrf() }}<button class="btn btn-small" type="submit">Cancel</button></form>
+        {% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="empty">No requests yet. Choose an item below to ask for it.</p>{% endif %}
+</section>
+
+<section class="panel portal-section table-panel">
+  <form method="get" class="filters">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search available equipment" aria-label="Search available equipment">
+    <button class="btn" type="submit">Search</button>
+    <span class="result-count">{{ available|length }} available now</span>
+  </form>
+  <table class="data">
+    <thead><tr><th>Equipment</th><th>Category</th><th>Lab</th><th>Condition</th><th class="num"></th></tr></thead>
+    <tbody>
+    {% for e in available %}
+      <tr>
+        <td><span class="strong">{{ e.equipment_name }}</span><small class="mono">{{ e.serial_number }}</small></td>
+        <td>{{ e.category_name }}</td><td>{{ e.lab_name }}</td><td>{{ e.equipment_condition }}</td>
+        <td class="num">{% if e.requested %}<span class="muted">Requested</span>
+          {% elif pending < max_pending %}<a class="btn btn-small" href="{{ url_for('portal.new_request', equipment_id=e.equipment_id) }}">Request</a>{% endif %}</td>
+      </tr>
+    {% else %}<tr><td colspan="5" class="empty">Nothing available matches.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% if past %}
+<section class="panel portal-section">
+  <header class="panel-head"><h2>Past loans ({{ past|length }})</h2></header>
+  <table class="data">
+    <thead><tr><th>Equipment</th><th>Issued → due</th><th>Returned</th><th class="num">Days late</th></tr></thead>
+    <tbody>
+    {% for a in past %}
+      <tr>
+        <td><span class="strong">{{ a.equipment_name }}</span><small class="mono">{{ a.serial_number }}</small></td>
+        <td>{{ a.allocation_date|dmy(false) }} → {{ a.expected_return_date|dmy }}</td>
+        <td>{{ a.return_date|dmy }} · {{ a.return_condition }}</td>
+        <td class="num">{{ a.days_late if a.days_late is not none else '-' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

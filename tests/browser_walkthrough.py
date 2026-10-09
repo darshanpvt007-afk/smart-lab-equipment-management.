@@ -1,4 +1,4 @@
-"""End-to-end browser walkthrough (TB00-TB15) that also saves screenshots
+"""End-to-end browser walkthrough (TB00-TB18) that also saves screenshots
 for the report and the presentation.
 
 It rebuilds the separate database smart_lab_equipment_apptest from the SQL
@@ -30,10 +30,11 @@ TEST_DB = "smart_lab_equipment_apptest"
 SHOTS = ROOT / "docs" / "screenshots"
 BUILD = ["01_create_database.sql", "02_create_tables.sql", "03_insert_sample_data.sql",
          "08_create_views.sql", "11_transaction_procedures.sql", "12_maintenance_procedures.sql",
-         "13_app_users.sql"]
+         "13_app_users.sql", "15_student_portal.sql"]
 # Throw-away passwords for the two walkthrough accounts: random on every run,
 # never printed, and the accounts exist only in the test database.
-PASSWORDS = {"walk.admin": secrets.token_urlsafe(18), "walk.tech": secrets.token_urlsafe(18)}
+PASSWORDS = {"walk.admin": secrets.token_urlsafe(18), "walk.tech": secrets.token_urlsafe(18),
+             "25BCE1103": "Kb-" + secrets.token_urlsafe(18)}       # student Kabir Nair (activates in TB16)
 PORT = int(os.environ.get("WALKTHROUGH_PORT", "5055"))
 BASE = f"http://127.0.0.1:{PORT}"
 
@@ -245,6 +246,44 @@ def main():
             expect(page.locator("h1")).to_have_text("Sign in")
         step("TB15", "Sign out ends the session", "16_signed_out.png", logout)
 
+
+        student = browser.new_page(viewport={"width": 1280, "height": 900})
+
+        def student_request():
+            sign_in(page, "walk.admin")
+            page.goto(BASE + "/users/students")
+            page.locator("tr:has-text('25BCE1103') button:has-text('Open activation')").click()
+            expect(page.locator(".flash-success")).to_contain_text("activation opened")
+            student.goto(BASE + "/login")
+            student.click("text=Activate your account")
+            student.fill("input[name=register_number]", "25BCE1103")
+            student.fill("input[name=email]", "kabir.nair@students.example.edu")
+            student.fill("input[name=password]", PASSWORDS["25BCE1103"])
+            student.fill("input[name=confirm_password]", PASSWORDS["25BCE1103"])
+            student.click("button:has-text('Activate and sign in')")
+            expect(student.locator("h1")).to_have_text("My equipment")
+            expect(student.locator("text=Ishaan Rao")).to_have_count(0)            # no other students
+            student.locator("tr:has-text('DMM-17B-0006') a:has-text('Request')").click()
+            student.fill("textarea[name=purpose]", "Basic electronics lab, experiment 3")
+            student.click("button:has-text('Send request')")
+            expect(student.locator(".flash-success")).to_contain_text("Request for DMM-17B-0006 sent")
+            student.screenshot(path=str(SHOTS / "17_student_portal.png"), full_page=True)
+        step("TB16", "Student activates their account and requests an available item", None, student_request)
+
+        def approve_request():
+            page.goto(BASE + "/requests/")
+            row = page.locator("tr:has-text('25BCE1103')")
+            row.locator("button:has-text('Approve')").click()
+            expect(page.locator(".flash-success")).to_contain_text("approved: equipment issued")
+        step("TB17", "Staff approve the request; the item is issued through the procedure",
+             "18_student_requests.png", approve_request)
+
+        def student_sees_loan():
+            student.goto(BASE + "/my/")
+            expect(student.locator("section:has-text('On loan to me') >> text=DMM-17B-0006")).to_be_visible()
+            student.goto(BASE + "/equipment/")
+            expect(student.locator("h1")).to_have_text("Error 403")                # staff pages refused
+        step("TB18", "Student sees the new loan and cannot open staff pages", None, student_sees_loan)
 
         browser.close()
     server.shutdown()

@@ -95,13 +95,14 @@ echo "---------------------------------------------------------------------"
 $MYSQL_CMD -e "DROP DATABASE IF EXISTS ${TEST_DB}"
 
 # ---------- 1. build & schema ----------------------------------------
-run_scripts TC01 "Clean build: 01, 02, 03, 08, 11, 12, 13 run without errors or warnings" \
+run_scripts TC01 "Clean build: 01, 02, 03, 08, 11, 12, 13, 15 run without errors or warnings" \
     01_create_database.sql 02_create_tables.sql 03_insert_sample_data.sql \
-    08_create_views.sql 11_transaction_procedures.sql 12_maintenance_procedures.sql 13_app_users.sql
+    08_create_views.sql 11_transaction_procedures.sql 12_maintenance_procedures.sql 13_app_users.sql 15_student_portal.sql
 
-# TC02-TC05 check the 10 domain tables of the ER design; the two sign-in
-# tables from file 13 (app_user, login_attempt) are tested in TC75-TC78.
-APP_TABLES="('app_user','login_attempt')"
+# TC02-TC05 check the 10 domain tables of the ER design; the tables added
+# for deployment are tested separately: file 13 (app_user, login_attempt)
+# in TC75-TC78, file 15 (student_account, equipment_request) in TC79-TC83.
+APP_TABLES="('app_user','login_attempt','student_account','equipment_request')"
 expect_value TC02 "All 10 base tables exist" \
  "SELECT GROUP_CONCAT(TABLE_NAME ORDER BY TABLE_NAME) FROM information_schema.TABLES
   WHERE TABLE_SCHEMA='${TEST_DB}' AND TABLE_TYPE='BASE TABLE' AND TABLE_NAME NOT IN ${APP_TABLES}" \
@@ -421,7 +422,7 @@ fi
 
 run_scripts TC62 "Rebuild after reset succeeds (reproducible from a clean server)" \
     01_create_database.sql 02_create_tables.sql 03_insert_sample_data.sql \
-    08_create_views.sql 11_transaction_procedures.sql 12_maintenance_procedures.sql 13_app_users.sql
+    08_create_views.sql 11_transaction_procedures.sql 12_maintenance_procedures.sql 13_app_users.sql 15_student_portal.sql
 check_validation TC63 "Rebuilt database passes validation again"
 
 # ---------- 9. maintenance workflow (Review 3, file 12) --------------
@@ -496,6 +497,25 @@ expect_value TC77 "...and every existing row is still there, including the accou
 
 expect_error TC78 "Unknown role and badly formed username are rejected (CHECK)" \
  "INSERT INTO app_user (username, password_hash, role) VALUES ('Bad Name','x','superuser')" 3819
+
+# ---------- 12. student portal tables (file 15, additive migration) --
+expect_value TC79 "Migration 15 created student_account and equipment_request, both empty" \
+ "SELECT CONCAT_WS(',', (SELECT COUNT(*) FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA='${TEST_DB}' AND TABLE_NAME IN ('student_account','equipment_request')),
+   (SELECT COUNT(*) FROM student_account), (SELECT COUNT(*) FROM equipment_request))" "2,0,0"
+
+q "INSERT INTO student_account (student_id, activation_expires_at) VALUES (1, NOW() + INTERVAL 1 DAY)" >/dev/null
+q "INSERT INTO equipment_request (student_id, equipment_id, requested_from, requested_until, purpose) VALUES (1, 5, '2026-10-12', '2026-10-16', 'TC80')" >/dev/null
+BEFORE15=$(q "SELECT CONCAT_WS(',',(SELECT COUNT(*) FROM student),(SELECT COUNT(*) FROM equipment_allocation),(SELECT COUNT(*) FROM app_user),(SELECT COUNT(*) FROM student_account),(SELECT COUNT(*) FROM equipment_request))")
+run_scripts TC80 "Re-running migration 15 on a database with data succeeds (idempotent)" 15_student_portal.sql
+expect_value TC81 "...and every existing row is still there" \
+ "SELECT CONCAT_WS(',',(SELECT COUNT(*) FROM student),(SELECT COUNT(*) FROM equipment_allocation),(SELECT COUNT(*) FROM app_user),(SELECT COUNT(*) FROM student_account),(SELECT COUNT(*) FROM equipment_request))" "$BEFORE15"
+
+expect_error TC82 "A second pending request for the same student and item is rejected (UNIQUE)" \
+ "INSERT INTO equipment_request (student_id, equipment_id, requested_from, requested_until, purpose) VALUES (1, 5, '2026-10-12', '2026-10-16', 'again')" 1062
+
+expect_error TC83 "A request marked Approved without an allocation is rejected (CHECK)" \
+ "UPDATE equipment_request SET request_status='Approved' WHERE student_id=1" 3819
 
 # ---------- summary ---------------------------------------------------
 if [ "${KEEP_TEST_DB:-0}" != 1 ]; then

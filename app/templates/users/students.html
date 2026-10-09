@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf with context %}
+{% block title %}Student sign-in{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Student sign-in</h1>
+    <p class="page-sub">Opening activation lets a student set their own password within {{ days }} days at <span class="mono">/activate</span>, using their register number and the e-mail on record. No passwords are created or shown here.</p></div>
+  <form method="post" action="{{ url_for('users.enable_students') }}" class="inline">{{ csrf() }}
+    <button class="btn btn-primary" type="submit">Open activation for all students without an account</button></form>
+</div>
+<table>
+  <thead><tr><th>Register no.</th><th>Name</th><th>Dept · year</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead>
+  <tbody>
+  {% for s in rows %}
+    <tr>
+      <td class="mono">{{ s.register_number }}</td><td>{{ s.student_name }}</td><td>{{ s.department }} · {{ s.year_of_study }}</td>
+      <td>{{ s.state }}{% if s.state == 'Waiting for activation' %}<small>until {{ s.activation_expires_at.strftime('%d %b %Y') }}</small>{% endif %}</td>
+      <td>{{ s.last_login_at.strftime('%d %b %Y %H:%M') if s.last_login_at else '-' }}</td>
+      <td class="row-actions">
+        <form method="post" action="{{ url_for('users.student_account_action', student_id=s.student_id) }}" class="inline"
+              {% if s.state == 'Active' %}data-confirm="Reset {{ s.register_number }}? Their password stops working until they activate again."{% endif %}>
+          {{ csrf() }}<input type="hidden" name="action" value="open">
+          <button class="btn btn-small" type="submit">{{ 'Open activation' if s.state in ('No account', 'Activation expired') else 'Reset' }}</button></form>
+        {% if s.has_account %}
+        <form method="post" action="{{ url_for('users.student_account_action', student_id=s.student_id) }}" class="inline">
+          {{ csrf() }}<input type="hidden" name="action" value="{{ 'reactivate' if not s.is_active else 'deactivate' }}">
+          <button class="btn btn-small {{ '' if not s.is_active else 'btn-danger' }}" type="submit">{{ 'Reactivate' if not s.is_active else 'Deactivate' }}</button></form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -13,7 +13,7 @@ How the web application protects the inventory data. Every control listed here i
 
 ## 2. Roles and permissions
 
-The server checks the role on **every request**. `app/auth.py` maps each of the 51 routes to one permission; a route that is not in the map is refused for everyone (fail closed, TA58), and a test checks that every route is in the map (TA55). Buttons a role cannot use are hidden (TA59), but hiding is only a convenience: the server refuses the request either way (TA56, TA57).
+The server checks the role on **every request**. `app/auth.py` maps each of the 61 routes to one permission; a route that is not in the map is refused for everyone (fail closed, TA58), and a test checks that every route is in the map (TA55). Buttons a role cannot use are hidden (TA59), but hiding is only a convenience: the server refuses the request either way (TA56, TA57).
 
 | Permission | What it allows | Admin | Lab manager | Inventory staff | Technician |
 |---|---|:-:|:-:|:-:|:-:|
@@ -24,7 +24,8 @@ The server checks the role on **every request**. `app/auth.py` maps each of the 
 | edit_students | Add and edit students | ✓ | ✓ | ✓ | |
 | manage_reference | Labs, categories, suppliers, purchases, lab staff | ✓ | ✓ | | |
 | delete_records | Delete any record (the database still refuses deletes that would lose history) | ✓ | ✓ | | |
-| manage_users | Create accounts, change roles, deactivate, reset passwords | ✓ | | | |
+| issue_return also covers | Approving or rejecting student requests (`/requests/`) | ✓ | ✓ | ✓ | |
+| manage_users | Create accounts, change roles, deactivate, reset passwords; open, reset or deactivate student sign-in | ✓ | | | |
 
 Every signed-in user can change their own password and sign out.
 
@@ -63,7 +64,34 @@ Every signed-in user can change their own password and sign out.
 - **Connections.** One per request. It is rolled back and closed at the end of every request, and has a 5-second connect timeout. Optional TLS with certificate verification (`DB_SSL_CA`) for hosted MySQL.
 - **Migrations are additive.** `13_app_users.sql` only creates tables if they do not exist. A test runs it twice on a database with data and checks that every row is still there (TC76–TC77, TA73). `10_reset_database.sql` is never run by the app or by deployment steps.
 
-## 6. Known limitations
+## 6. Student accounts (`sql/15_student_portal.sql`)
+
+Students are **not** a staff role and hold none of the permissions above. They have a separate account table (`student_account`), sign in with their register number, and can open only three pages under `/my/`.
+
+| Control | Detail | Test |
+|---|---|---|
+| Own data only | Every portal query is filtered by the student id stored in the signed-in session, never by an id from the URL or form. A student sees their own loans, requests and history, plus a read-only list of available items; no other student's name, register number or e-mail appears | TA83, TA86 |
+| No staff pages | Every staff route returns 403 for a student; `/` redirects to `/my/` | TA84, TB18 |
+| No staff on student pages | Staff accounts get 403 on `/my/` | TA56 |
+| Requests | At most 3 open requests per student; start no earlier than today and no more than 30 days ahead; 14-day maximum; purpose required; one pending request per item (database UNIQUE index) | TA85, TC82 |
+| Approval | Only roles with `issue_return`. Approving calls `sp_allocate_equipment` (same checks as the Issue form); if the item is no longer available the request stays pending with the procedure's message | TA87, TA88 |
+| Sign-in | Same throttling, session renewal and password rules as staff. Staff usernames may not look like a register number, so the two kinds of account can never collide | TA82, TA90, TA91 |
+
+**Self-activation.**
+- An administrator opens activation, for every student without an account or for one student, on **Users → Student sign-in**.
+- Within 14 days the student enters their register number, the e-mail on record and a new password at `/activate` (TA80).
+- Activation works once.
+- One message covers every failure (wrong e-mail, not opened, expired, deactivated or unknown student), so the page does not reveal which accounts exist (TA81).
+- Attempts are throttled like sign-in.
+
+**Known risk of self-activation.** A register number and an e-mail address are not secret. Someone who knows both could activate another student's account before they do. This is limited by:
+- the 14-day window, opened only when an administrator chooses;
+- one-time activation;
+- throttling.
+
+The student notices at once, because their own activation fails. An administrator can then **Reset** the account: the password is cleared, every session is ended and activation reopens (TA89). For a real deployment, send each student a one-time activation link by e-mail instead (not implemented: the app sends no e-mail).
+
+## 7. Known limitations
 
 - No multi-factor authentication and no self-service password reset: an administrator resets forgotten passwords.
 - The address-based throttle trusts `X-Forwarded-For` only when `TRUST_PROXY` is set; behind a proxy that is not configured correctly, all users could share one address and hit the per-address limit together.

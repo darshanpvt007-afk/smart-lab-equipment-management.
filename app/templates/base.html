@@ -24,6 +24,7 @@
     'categories': ('Administration', 'Categories', 'categories.list_categories'),
     'reports': ('Administration', 'Reports', 'reports.index'),
     'users': ('Administration', 'Users', 'users.list_users'),
+    'requests': ('Loans', 'Student requests', 'requests.list_requests'),
     'auth': ('Account', 'Account', 'auth.change_password'),
 } %}
 
@@ -76,7 +77,9 @@
     <p class="nav-group">Loans</p>
     <a href="{{ url_for('allocations.list_allocations') }}" class="nav-item {{ 'active' if bp == 'allocations' and ep != 'allocations.issue' }}">
       Allocations{% if navc.overdue %}<span class="nav-count nav-count-alert">{{ navc.overdue }} overdue</span>{% endif %}</a>
-    {% if can('issue_return') %}<a href="{{ url_for('allocations.issue') }}" class="nav-item {{ 'active' if ep == 'allocations.issue' }}">Issue equipment</a>{% endif %}
+    {% if can('issue_return') %}<a href="{{ url_for('allocations.issue') }}" class="nav-item {{ 'active' if ep == 'allocations.issue' }}">Issue equipment</a>
+    <a href="{{ url_for('requests.list_requests') }}" class="nav-item {{ 'active' if bp == 'requests' }}">
+      Student requests{% if navc.pending_requests %}<span class="nav-count nav-count-alert">{{ navc.pending_requests }} pending</span>{% endif %}</a>{% endif %}
 
     <p class="nav-group">People</p>
     <a href="{{ url_for('students.list_students') }}" class="nav-item {{ 'active' if bp == 'students' }}">
@@ -93,7 +96,8 @@
     <a href="{{ url_for('labs.list_labs') }}" class="nav-item {{ 'active' if bp == 'labs' }}">Labs</a>
     <a href="{{ url_for('categories.list_categories') }}" class="nav-item {{ 'active' if bp == 'categories' }}">Categories</a>
     <a href="{{ url_for('reports.index') }}" class="nav-item {{ 'active' if bp == 'reports' }}">Reports</a>
-    {% if can('manage_users') %}<a href="{{ url_for('users.list_users') }}" class="nav-item {{ 'active' if bp == 'users' }}">Users</a>{% endif %}
+    {% if can('manage_users') %}<a href="{{ url_for('users.list_users') }}" class="nav-item {{ 'active' if bp == 'users' and ep not in ('users.student_access',) }}">Users</a>
+    <a href="{{ url_for('users.student_access') }}" class="nav-item {{ 'active' if ep == 'users.student_access' }}">Student sign-in</a>{% endif %}
 
     <p class="sidebar-foot">Data as of {{ today|dmy }} · MySQL 8</p>
   </div></nav>

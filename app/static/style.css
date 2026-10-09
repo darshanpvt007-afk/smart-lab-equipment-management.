@@ -325,3 +325,15 @@ input.checkbox { width: auto; height: auto; margin-right: 6px; vertical-align: m
 .reset-card { margin-top: 16px; }
 .reset-card h2 { margin-top: 0; }
 @media (max-width: 1180px) { .user-menu .user-text { display: none; } }
+
+/* ---------- student portal and requests ---------- */
+.portal-main { max-width: 1080px; margin: 0 auto; padding: 24px 20px 32px; }
+.portal .topbar { justify-content: space-between; }
+.portal-section { margin-top: 16px; }
+.login-alt { margin: 14px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
+.badge-pending { background: var(--warn-bg); color: var(--warn); }
+.badge-approved { background: var(--ok-bg); color: var(--ok); }
+.badge-rejected, .badge-cancelled { background: var(--grey-bg); color: var(--grey); }
+form.decide { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; }
+form.decide select, form.decide input { width: auto; height: 30px; font-size: 13px; padding: 0 8px; }
+form.decide input[name=decision_note] { min-width: 160px; }

@@ -502,6 +502,15 @@ Choose the passwords yourself and keep them off the slides. Then run `python run
 
 Optional extra step at the end: sign out, sign in as `demo.tech` and show that "Issue equipment" is missing and that `/allocations/new` returns Error 403. The server checks the role, not just the menu (TB14, TA56).
 
+Optional student demo (about 3 minutes; run `sql/15_student_portal.sql` first):
+1. As admin, open **Student sign-in** and click **Open activation** for 25BCE1103.
+2. In a private browser window, open the sign-in page, click **Activate your account**, and enter `25BCE1103`, `kabir.nair@students.example.edu` and a new password. Kabir sees only his own loan.
+3. Request **DMM-17B-0006**.
+4. Back as admin, open **Student requests** and click **Approve & issue**: "approved: equipment issued".
+5. Kabir reloads and sees the new loan. Opening `/equipment/` gives Error 403.
+
+Say: "Students have their own account table and see only their own rows; approval reuses the same stored procedure as the Issue form" (TB16–TB18, TA83–TA87).
+
 Every expected result below is checked by an automated test (IDs in brackets) on the same sample data.
 
 | # | Do this | Expect | Say | Requirement |

@@ -293,3 +293,17 @@ Added to make a public student demo safe. The 10 ER tables are unchanged; the ad
 | `session_epoch` counter instead of server-side sessions | Lets a password change or deactivation end every session of an account while keeping Flask's signed-cookie sessions (no extra session store). |
 | Production refuses to start with missing or unsafe settings | A misconfigured deployment fails loudly at start-up instead of running with a guessable key or the root account. |
 | Three MySQL accounts (runtime, migration, test) | The web app cannot change the schema or the stored procedures even if it is compromised (verified, docs/SECURITY.md section 5). |
+
+## D-25 Student accounts and borrowing requests
+
+Added after deployment hardening, at the project owner's request: students sign in, see their own loans and ask to borrow available items; staff approve or reject.
+
+| Choice | Reason |
+|---|---|
+| Separate `student_account` table keyed by `student_id`, instead of a "student" row in `app_user` | Students are not staff: they hold none of the staff permissions, are identified by register number, and their account must disappear with their student record (`ON DELETE CASCADE`, the only cascading key). `app_user` and the staff permission model stay unchanged. |
+| `equipment_request` is a new table outside the Review 1 ER model | A request is not an allocation: it may be rejected or cancelled and never become a loan. When approved it links to the allocation the stored procedure created (`allocation_id`), so loans are still recorded only in `equipment_allocation`. TC02-TC05 continue to check exactly the 10 ER tables. |
+| Approval calls `sp_allocate_equipment` | One code path for issuing equipment: the same row lock, availability check and transaction as the Issue form. |
+| Functional UNIQUE index for "one pending request per student and item" | The same technique as the one-active-allocation rule (D-10); enforced by the database even under concurrent requests (TC82). |
+| `fk_request_allocation ... ON UPDATE RESTRICT` | MySQL refuses a column that is used both in a CHECK and in a foreign key with a cascading action (error 3823). Allocation ids never change, so RESTRICT loses nothing. |
+| Self-activation with register number + e-mail on record | Chosen by the project owner over handing out generated passwords: no password is ever created, shown or sent by staff. Its weakness and mitigations are in docs/SECURITY.md section 6. |
+| Students see equipment names, categories, labs and conditions only | Enough to choose an item; serial numbers are shown because they are printed on the items; no prices, suppliers or other students' data. |
