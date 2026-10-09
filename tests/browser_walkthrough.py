@@ -1,4 +1,4 @@
-"""End-to-end browser walkthrough (TB01-TB13) that also saves screenshots
+"""End-to-end browser walkthrough (TB00-TB15) that also saves screenshots
 for the report and the presentation.
 
 It rebuilds the separate database smart_lab_equipment_apptest from the SQL
@@ -12,6 +12,7 @@ Run from the project root (Playwright and Chromium must be installed:
 Screenshots are written to docs/screenshots/.
 """
 import os
+import secrets
 import subprocess
 import sys
 import tempfile
@@ -28,7 +29,11 @@ from app import create_app  # noqa: E402
 TEST_DB = "smart_lab_equipment_apptest"
 SHOTS = ROOT / "docs" / "screenshots"
 BUILD = ["01_create_database.sql", "02_create_tables.sql", "03_insert_sample_data.sql",
-         "08_create_views.sql", "11_transaction_procedures.sql", "12_maintenance_procedures.sql"]
+         "08_create_views.sql", "11_transaction_procedures.sql", "12_maintenance_procedures.sql",
+         "13_app_users.sql"]
+# Throw-away passwords for the two walkthrough accounts: random on every run,
+# never printed, and the accounts exist only in the test database.
+PASSWORDS = {"walk.admin": secrets.token_urlsafe(18), "walk.tech": secrets.token_urlsafe(18)}
 PORT = int(os.environ.get("WALKTHROUGH_PORT", "5055"))
 BASE = f"http://127.0.0.1:{PORT}"
 
@@ -57,9 +62,20 @@ def start_server():
     app = create_app({"SECRET_KEY": "walkthrough", "DB_NAME": TEST_DB, "REFERENCE_DATE": "2026-10-10",
                       "DB_HOST": settings["host"], "DB_PORT": settings["port"], "DB_USER": settings["user"],
                       "DB_PASSWORD": settings["password"], "DB_UNIX_SOCKET": settings["unix_socket"]})
+    from app import auth
+    with app.app_context():
+        auth.insert_user("walk.admin", "admin", PASSWORDS["walk.admin"], 1)
+        auth.insert_user("walk.tech", "technician", PASSWORDS["walk.tech"], 4)
     server = make_server("127.0.0.1", PORT, app)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
+
+
+def sign_in(page, username):
+    page.goto(BASE + "/login")
+    page.fill("input[name=username]", username)
+    page.fill("input[name=password]", PASSWORDS[username])
+    page.click("button:has-text('Sign in')")
 
 
 def main():
@@ -71,7 +87,8 @@ def main():
     def step(test_id, title, shot, action):
         try:
             action()
-            page.screenshot(path=str(SHOTS / shot), full_page=True)
+            if shot:                                  # None: the step saved its own screenshot
+                page.screenshot(path=str(SHOTS / shot), full_page=True)
             results.append((test_id, title, "PASS", ""))
         except Exception as exc:                      # report and continue
             results.append((test_id, title, "FAIL", str(exc).splitlines()[0]))
@@ -79,6 +96,20 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None)
         page = browser.new_page(viewport={"width": 1440, "height": 900})
+
+        def signin():
+            page.goto(BASE + "/equipment/")
+            expect(page.locator("h1")).to_have_text("Sign in")               # redirected
+            page.screenshot(path=str(SHOTS / "00_sign_in.png"), full_page=True)
+            page.fill("input[name=username]", "walk.admin")
+            page.fill("input[name=password]", "Wrong-password-123")
+            page.click("button:has-text('Sign in')")
+            expect(page.locator(".login-error")).to_have_text("Invalid username or password.")
+            page.fill("input[name=password]", PASSWORDS["walk.admin"])    # retry on the same page
+            page.click("button:has-text('Sign in')")
+            expect(page.locator("h1")).to_have_text("Equipment")             # back where we started
+        step("TB00", "Sign-in required; wrong password refused; correct one returns to the page",
+             "00_signed_in.png", signin)
 
         def dashboard():
             page.goto(BASE + "/")
@@ -186,6 +217,34 @@ def main():
             overflow = page.evaluate("document.documentElement.scrollWidth - window.innerWidth")
             assert overflow <= 0, f"page scrolls sideways by {overflow}px"
         step("TB13", "Phone width: menu opens from the toggle, no sideways scroll", "14_mobile_menu.png", mobile)
+
+        def technician():
+            page.set_viewport_size({"width": 1440, "height": 900})
+            tech = browser.new_page(viewport={"width": 1440, "height": 900})
+            try:
+                sign_in(tech, "walk.tech")
+                expect(tech.locator("h1")).to_have_text("Operations overview")
+                expect(tech.locator("nav.sidebar >> text=Issue equipment")).to_have_count(0)
+                tech.goto(BASE + "/allocations/new")
+                expect(tech.locator("h1")).to_have_text("Error 403")
+                tech.goto(BASE + "/maintenance/")
+                expect(tech.locator("button:has-text('Start')").first).to_be_visible()
+                tech.screenshot(path=str(SHOTS / "15_technician_role.png"), full_page=True)
+            finally:
+                tech.close()
+        step("TB14", "Technician role: no issue action, server refuses it, maintenance allowed",
+             None, technician)
+
+        def logout():
+            page.set_viewport_size({"width": 1440, "height": 900})
+            page.goto(BASE + "/")
+            page.click("details.user-menu summary")
+            page.click("button:has-text('Sign out')")
+            expect(page.locator(".flash-success")).to_have_text("You have signed out.")
+            page.goto(BASE + "/")
+            expect(page.locator("h1")).to_have_text("Sign in")
+        step("TB15", "Sign out ends the session", "16_signed_out.png", logout)
+
 
         browser.close()
     server.shutdown()

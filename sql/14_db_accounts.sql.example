@@ -1,0 +1,48 @@
+-- =====================================================================
+-- File   : 14_db_accounts.sql.example          (template - NOT run as is)
+-- Purpose: Separate MySQL accounts with the least privilege each one needs.
+--
+-- Copy this file OUTSIDE the repository, replace every CHANGE_ME_* with a
+-- long random password (e.g. python3 -c "import secrets; print(secrets.token_urlsafe(24))"),
+-- run it once as a MySQL administrator, then delete the copy:
+--     sudo mysql < /path/outside/repo/db_accounts.sql
+-- Never commit a copy that contains real passwords.
+--
+-- Account          Used by                     Can do
+-- smartlab_app     the running web app         read/write rows, call the 4 procedures;
+--                  (DB_USER in production)     NO DDL: cannot create, alter or drop anything
+-- smartlab_admin   you, for migrations          everything on this one database only
+--                  (sql/01-13) and backups
+-- smartlab_test    the automated tests         everything, but ONLY on the two test databases
+--
+-- None of them has privileges on any other database, and none is root.
+-- On a hosted MySQL, replace 'localhost' with the host the app connects
+-- from (or '%' if the provider requires it and the server is not public).
+-- =====================================================================
+
+-- ---- runtime account: data access only ------------------------------
+CREATE USER IF NOT EXISTS 'smartlab_app'@'localhost' IDENTIFIED BY 'CHANGE_ME_APP_PASSWORD';
+GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE
+    ON smart_lab_equipment_db.* TO 'smartlab_app'@'localhost';
+-- Stored procedures run with their definer's rights (SQL SECURITY DEFINER),
+-- so EXECUTE is enough to call them; the app can never change them.
+
+-- ---- migration / administration account -----------------------------
+CREATE USER IF NOT EXISTS 'smartlab_admin'@'localhost' IDENTIFIED BY 'CHANGE_ME_ADMIN_PASSWORD';
+GRANT ALL PRIVILEGES ON smart_lab_equipment_db.* TO 'smartlab_admin'@'localhost';
+-- Backups (mysqldump --routines) must read the stored procedures even when
+-- another account (e.g. root) created them; SHOW_ROUTINE (MySQL 8.0.20+) is
+-- read-only. Without it the dump stops with "insufficient privileges to
+-- SHOW CREATE PROCEDURE" and the backup has no procedures (found by the
+-- restore test in docs/DEPLOYMENT.md).
+GRANT SHOW_ROUTINE ON *.* TO 'smartlab_admin'@'localhost';
+
+-- ---- test account: test databases only ------------------------------
+CREATE USER IF NOT EXISTS 'smartlab_test'@'localhost' IDENTIFIED BY 'CHANGE_ME_TEST_PASSWORD';
+GRANT ALL PRIVILEGES ON smart_lab_equipment_test.*    TO 'smartlab_test'@'localhost';
+GRANT ALL PRIVILEGES ON smart_lab_equipment_apptest.* TO 'smartlab_test'@'localhost';
+
+-- Optional hardening for the runtime account:
+ALTER USER 'smartlab_app'@'localhost' WITH MAX_USER_CONNECTIONS 20;
+
+-- Check:  SHOW GRANTS FOR 'smartlab_app'@'localhost';

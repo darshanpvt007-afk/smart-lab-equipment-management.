@@ -9,19 +9,19 @@
     <h1>{{ item.equipment_name }} <span class="h1-serial mono">{{ item.serial_number }}</span></h1>
   </div>
   <div class="actions">
-    {% if item.availability_status == 'Available' %}
+    {% if item.availability_status == 'Available' and can('issue_return') %}
       <a class="btn btn-primary" href="{{ url_for('allocations.issue', equipment_id=item.equipment_id) }}">Issue</a>
-    {% elif current %}
+    {% elif current and can('issue_return') %}
       <a class="btn btn-primary" href="{{ url_for('allocations.return_equipment', allocation_id=current.allocation_id) }}">Record return</a>
-    {% elif open_job and open_job.maintenance_status == 'In Progress' %}
+    {% elif open_job and open_job.maintenance_status == 'In Progress' and can('maintain') %}
       <a class="btn btn-primary" href="{{ url_for('maintenance.complete', maintenance_id=open_job.maintenance_id) }}">Complete maintenance</a>
-    {% elif open_job %}
+    {% elif open_job and can('maintain') %}
       <form method="post" action="{{ url_for('maintenance.start', maintenance_id=open_job.maintenance_id) }}" class="inline">
         {{ csrf() }}<button class="btn btn-primary" type="submit">Start maintenance</button>
       </form>
     {% endif %}
-    <a class="btn" href="{{ url_for('maintenance.schedule', equipment_id=item.equipment_id) }}">Schedule maintenance</a>
-    <a class="btn" href="{{ url_for('equipment.edit', equipment_id=item.equipment_id) }}">Edit details</a>
+    {% if can('maintain') %}<a class="btn" href="{{ url_for('maintenance.schedule', equipment_id=item.equipment_id) }}">Schedule maintenance</a>{% endif %}
+    {% if can('edit_equipment') %}<a class="btn" href="{{ url_for('equipment.edit', equipment_id=item.equipment_id) }}">Edit details</a>{% endif %}
     {{ delete_button(url_for('equipment.delete', equipment_id=item.equipment_id), 'this equipment') }}
   </div>
 </div>

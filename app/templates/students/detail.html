@@ -5,7 +5,7 @@
 <div class="page-head">
   <h1>{{ student.student_name }} <small>{{ student.register_number }}</small></h1>
   <div class="actions">
-    <a class="btn" href="{{ url_for('students.edit', student_id=student.student_id) }}">Edit</a>
+    {% if can('edit_students') %}<a class="btn" href="{{ url_for('students.edit', student_id=student.student_id) }}">Edit</a>{% endif %}
     {{ delete_button(url_for('students.delete', student_id=student.student_id), 'this student') }}
   </div>
 </div>
@@ -25,7 +25,7 @@
       <td>{{ a.allocation_date }}</td><td>{{ a.expected_return_date }}</td><td>{{ badge(a.allocation_status) }}</td>
       <td>{{ a.return_date or '-' }}</td><td>{{ a.return_condition or '-' }}</td>
       <td class="num">{{ a.days_late if a.days_late is not none else '-' }}</td>
-      <td>{% if a.allocation_status == 'Issued' %}<a class="btn btn-small" href="{{ url_for('allocations.return_equipment', allocation_id=a.allocation_id) }}">Return</a>{% endif %}</td>
+      {% if can('issue_return') %}<td>{% if a.allocation_status == 'Issued' %}<a class="btn btn-small" href="{{ url_for('allocations.return_equipment', allocation_id=a.allocation_id) }}">Return</a>{% endif %}</td>{% endif %}
     </tr>
   {% else %}<tr><td colspan="9" class="muted">This student has not borrowed any equipment.</td></tr>{% endfor %}
   </tbody>

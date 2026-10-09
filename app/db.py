@@ -15,7 +15,12 @@ def get_db():
     if "db" not in g:
         cfg = current_app.config
         options = dict(user=cfg["DB_USER"], password=cfg["DB_PASSWORD"],
-                       database=cfg["DB_NAME"], autocommit=False)
+                       database=cfg["DB_NAME"], autocommit=False,
+                       connection_timeout=cfg.get("DB_CONNECT_TIMEOUT", 5))
+        if cfg.get("DB_SSL_CA"):
+            # Hosted MySQL (e.g. Aiven): encrypt the connection and verify the
+            # server certificate against the provider's CA file.
+            options.update(ssl_ca=cfg["DB_SSL_CA"], ssl_verify_cert=True, ssl_verify_identity=True)
         if cfg.get("DB_UNIX_SOCKET"):
             options["unix_socket"] = cfg["DB_UNIX_SOCKET"]
         else:
@@ -25,8 +30,16 @@ def get_db():
 
 
 def close_db(_exc=None):
+    """End of every request: undo anything not committed, then close.
+    Even read-only requests hold a transaction snapshot until this point."""
     conn = g.pop("db", None)
-    if conn is not None:
+    if conn is None:
+        return
+    try:
+        conn.rollback()
+    except mysql.connector.Error:
+        pass                    # connection already broken; closing is all that is left
+    finally:
         conn.close()
 
 
@@ -86,6 +99,7 @@ def call_procedure(name, args):
 # ---------------------------------------------------------------------------
 UNIQUE_MESSAGES = {
     "uq_student_register_no": "A student with this register number already exists.",
+    "uq_app_user_username": "An account with this username already exists.",
     "uq_student_email": "A student with this e-mail address already exists.",
     "uq_lab_staff_email": "A staff member with this e-mail address already exists.",
     "uq_equipment_serial_number": "Equipment with this serial number already exists.",

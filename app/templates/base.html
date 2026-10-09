@@ -23,6 +23,8 @@
     'labs': ('Administration', 'Labs', 'labs.list_labs'),
     'categories': ('Administration', 'Categories', 'categories.list_categories'),
     'reports': ('Administration', 'Reports', 'reports.index'),
+    'users': ('Administration', 'Users', 'users.list_users'),
+    'auth': ('Account', 'Account', 'auth.change_password'),
 } %}
 
 <header class="topbar">
@@ -44,10 +46,21 @@
   <span class="date-chip" title="{{ 'Fixed reference date (APP_REFERENCE_DATE)' if reference_date_fixed else 'Current date' }}">
     {{ 'Reference date' if reference_date_fixed else 'Today' }}: {{ today.isoformat() }}
   </span>
-  <span class="user" title="Sign-in and roles are a planned extension; every visitor acts as the lab desk.">
-    <span class="avatar" aria-hidden="true">LD</span>
-    <span class="user-text"><b>Lab desk</b><small>No sign-in (prototype)</small></span>
-  </span>
+  {% if current_user %}
+  <details class="user-menu">
+    <summary class="user">
+      <span class="avatar" aria-hidden="true">{{ current_user.username[:2]|upper }}</span>
+      <span class="user-text"><b>{{ current_user.username }}</b><small>{{ role_labels[current_user.role] }}</small></span>
+    </summary>
+    <div class="user-pop">
+      <a href="{{ url_for('auth.change_password') }}">Change password</a>
+      <form method="post" action="{{ url_for('auth.logout') }}">
+        {% from "macros.html" import csrf with context %}{{ csrf() }}
+        <button type="submit" class="link-button">Sign out</button>
+      </form>
+    </div>
+  </details>
+  {% endif %}
 </header>
 
 <div class="shell">
@@ -63,7 +76,7 @@
     <p class="nav-group">Loans</p>
     <a href="{{ url_for('allocations.list_allocations') }}" class="nav-item {{ 'active' if bp == 'allocations' and ep != 'allocations.issue' }}">
       Allocations{% if navc.overdue %}<span class="nav-count nav-count-alert">{{ navc.overdue }} overdue</span>{% endif %}</a>
-    <a href="{{ url_for('allocations.issue') }}" class="nav-item {{ 'active' if ep == 'allocations.issue' }}">Issue equipment</a>
+    {% if can('issue_return') %}<a href="{{ url_for('allocations.issue') }}" class="nav-item {{ 'active' if ep == 'allocations.issue' }}">Issue equipment</a>{% endif %}
 
     <p class="nav-group">People</p>
     <a href="{{ url_for('students.list_students') }}" class="nav-item {{ 'active' if bp == 'students' }}">
@@ -80,6 +93,7 @@
     <a href="{{ url_for('labs.list_labs') }}" class="nav-item {{ 'active' if bp == 'labs' }}">Labs</a>
     <a href="{{ url_for('categories.list_categories') }}" class="nav-item {{ 'active' if bp == 'categories' }}">Categories</a>
     <a href="{{ url_for('reports.index') }}" class="nav-item {{ 'active' if bp == 'reports' }}">Reports</a>
+    {% if can('manage_users') %}<a href="{{ url_for('users.list_users') }}" class="nav-item {{ 'active' if bp == 'users' }}">Users</a>{% endif %}
 
     <p class="sidebar-foot">Data as of {{ today|dmy }} · MySQL 8</p>
   </div></nav>

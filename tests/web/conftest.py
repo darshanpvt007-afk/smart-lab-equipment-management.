@@ -23,7 +23,16 @@ ROOT = Path(__file__).resolve().parents[2]
 DEV_DB = "smart_lab_equipment_db"
 TEST_DB = "smart_lab_equipment_apptest"
 BUILD_FILES = ["01_create_database.sql", "02_create_tables.sql", "03_insert_sample_data.sql",
-               "08_create_views.sql", "11_transaction_procedures.sql", "12_maintenance_procedures.sql"]
+               "08_create_views.sql", "11_transaction_procedures.sql", "12_maintenance_procedures.sql",
+               "13_app_users.sql"]
+
+# Safety: these tests DROP and rebuild their database before every test, so
+# refuse to run unless the target is clearly the dedicated test database.
+assert TEST_DB != DEV_DB and TEST_DB.endswith("_apptest"), "tests must use a dedicated test database"
+
+# Test-only accounts (fake names, fake password; never used outside tests).
+TEST_PASSWORD = "Test-only-Passw0rd-42"
+ROLES = ("admin", "lab_manager", "inventory_staff", "technician")
 REFERENCE_DATE = "2026-10-10"
 
 
@@ -43,6 +52,7 @@ def build_script():
     sql = "\n".join(
         (ROOT / "sql" / name).read_text(encoding="utf-8").replace(DEV_DB, TEST_DB)
         for name in BUILD_FILES)
+    assert DEV_DB not in sql, "build script must not mention the development database"
     return f"DROP DATABASE IF EXISTS {TEST_DB};\n{sql}"
 
 
@@ -82,13 +92,35 @@ def app():
     })
 
 
-class Client:
-    """Test client that sends the CSRF token automatically on POST."""
+@pytest.fixture(scope="session")
+def password_hash():
+    from werkzeug.security import generate_password_hash
+    return generate_password_hash(TEST_PASSWORD)       # computed once: scrypt is slow on purpose
 
-    def __init__(self, flask_client):
+
+@pytest.fixture
+def accounts(sql, password_hash):
+    """One active account per role, named after the role: {role: user_id}."""
+    ids = {}
+    for role in ROLES:
+        sql("INSERT INTO app_user (username, password_hash, role) VALUES (%s, %s, %s)",
+            (role.replace("_", "."), password_hash, role))
+        ids[role] = sql("SELECT user_id FROM app_user WHERE username = %s",
+                        (role.replace("_", "."),))[0]["user_id"]
+    return ids
+
+
+class Client:
+    """Test client that sends the CSRF token automatically on POST.
+    With user_id it starts already signed in (as if it had logged in)."""
+
+    def __init__(self, flask_client, user_id=None):
         self.raw = flask_client
         with flask_client.session_transaction() as sess:
             sess["csrf_token"] = "test-token"
+            if user_id is not None:
+                sess["uid"] = user_id
+                sess["epoch"] = 0
 
     def get(self, url, **kw):
         return self.raw.get(url, **kw)
@@ -100,8 +132,22 @@ class Client:
 
 
 @pytest.fixture
-def client(app):
+def client(app, accounts):
+    """Signed in as an administrator (all permissions), as the existing
+    workflow tests expect."""
+    return Client(app.test_client(), accounts["admin"])
+
+
+@pytest.fixture
+def anon(app):
+    """Not signed in (but holding a CSRF token, like a browser that loaded a page)."""
     return Client(app.test_client())
+
+
+@pytest.fixture
+def client_as(app, accounts):
+    """client_as('technician') -> a client signed in with that role."""
+    return lambda role: Client(app.test_client(), accounts[role])
 
 
 @pytest.fixture
@@ -117,10 +163,15 @@ def sql():
 
     def run(query, params=()):
         cur = conn.cursor(dictionary=True)
-        cur.execute(query, params)
-        rows = cur.fetchall()
-        cur.close()
-        conn.commit()            # end the read so the next call sees new data
+        try:
+            cur.execute(query, params)
+            rows = cur.fetchall() if cur.with_rows else []
+            conn.commit()        # end the read (or save the write) so the next call sees new data
+        except mysql.connector.Error:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
         return rows
 
     yield run

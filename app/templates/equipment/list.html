@@ -9,7 +9,7 @@
   </div>
   <div class="actions">
     <a class="btn" href="{{ list_url('equipment.export_csv', page=1) }}">Export CSV</a>
-    <a class="btn btn-primary" href="{{ url_for('equipment.create') }}">+ Add equipment</a>
+    {% if can('edit_equipment') %}<a class="btn btn-primary" href="{{ url_for('equipment.create') }}">+ Add equipment</a>{% endif %}
   </div>
 </div>
 
@@ -73,17 +73,17 @@
         <td>{{ badge(r.availability_status) }}{% if r.overdue %} <span class="pill pill-overdue">Overdue</span>{% endif %}</td>
         <td>{% if r.last_activity %}{{ r.last_activity }}<small>{{ r.last_date|dmy }}</small>{% else %}<span class="muted">-</span>{% endif %}</td>
         <td class="num row-actions">
-          {% if r.availability_status == 'Available' %}
+          {% if r.availability_status == 'Available' and can('issue_return') %}
             <a class="btn btn-small" href="{{ url_for('allocations.issue', equipment_id=r.equipment_id) }}">Issue</a>
-          {% elif r.allocation_id %}
+          {% elif r.allocation_id and can('issue_return') %}
             <a class="btn btn-small" href="{{ url_for('allocations.return_equipment', allocation_id=r.allocation_id) }}">Record return</a>
-          {% elif r.job_in_progress %}
+          {% elif r.job_in_progress and can('maintain') %}
             <a class="btn btn-small" href="{{ url_for('maintenance.complete', maintenance_id=r.job_in_progress) }}">Complete job</a>
-          {% elif r.job_scheduled %}
+          {% elif r.job_scheduled and can('maintain') %}
             <form method="post" action="{{ url_for('maintenance.start', maintenance_id=r.job_scheduled) }}" class="inline">
               {{ csrf() }}<button class="btn btn-small" type="submit">Start job</button>
             </form>
-          {% else %}
+          {% elif r.availability_status in ('Unavailable', 'Under Maintenance') and can('maintain') %}
             <a class="btn btn-small" href="{{ url_for('maintenance.schedule', equipment_id=r.equipment_id) }}">Schedule repair</a>
           {% endif %}
         </td>

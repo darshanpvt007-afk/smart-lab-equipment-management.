@@ -381,3 +381,46 @@ Passed: 13   Failed: 0   Total: 13
 - Browsers other than Chromium.
 - Windows or macOS for the app.
 - More than one simultaneous web user, beyond the database-level concurrency tests TC53 and TC54.
+
+---
+
+# Deployment security test results
+
+| Item | Value |
+|---|---|
+| Date of run | 2026-10-09 (UTC) |
+| Environment | MySQL 8.0.46, Python 3.13, Flask 3.1.3, Werkzeug 3.1.9, gunicorn 23.0.0, Playwright with Chromium |
+| Database suite | `bash tests/run_tests.sh`: **78 passed, 0 failed** (adds TC75–TC78 for migration 13; TC02–TC05 now check the 10 domain tables only) |
+| Application suite | `python -m pytest`: **136 passed, 0 failed** as root, and again **136 passed** under the restricted `smartlab_test` account (rights on the two test databases only) |
+| Browser walkthrough | **16 passed, 0 failed** (TB00–TB15), run in a scratch copy of the project so the committed screenshots were not overwritten |
+| Development database | Not touched: still 10 students and no `app_user` table after all runs |
+
+## How the security tests were checked
+
+- **Mutation checks.** In scratch copies, four protections were removed one at a time and the security tests run again:
+  - the server-side role check: 4 tests failed;
+  - session renewal at sign-in: 1 failed;
+  - the open-redirect guard: 3 failed;
+  - login throttling: 2 failed.
+- **Least-privilege runtime account** (`smartlab_app`, created with a random password).
+  - Allowed: SELECT and calling a stored procedure.
+  - Refused: CREATE TABLE, DROP TABLE, ALTER TABLE, DROP PROCEDURE, TRUNCATE, reading another database, reading `mysql.user`, and GRANT to itself.
+- **Production start with gunicorn.**
+  - With `SECRET_KEY` missing, or with `DB_USER=root`, gunicorn exited with code 1 and the message named the setting.
+  - With correct settings, under the runtime account, behind a simulated HTTPS proxy (`TRUST_PROXY=1`):
+    - `/healthz` returned 200;
+    - the session cookie had `Secure`, `HttpOnly` and `SameSite=Lax`;
+    - HSTS and CSP were present, and signed-in pages had `Cache-Control: no-store`;
+    - sign-in, issuing equipment through `sp_allocate_equipment` (allocation #22) and sign-out all worked;
+    - a refused issue showed the procedure's message ("equipment 5 is Under Maintenance").
+  - The first administrator was created with `flask --app wsgi create-user --password-stdin`, using the migration account.
+- **Secrets in logs.** The gunicorn log was searched for the runtime, admin and first-administrator passwords and for `SECRET_KEY`: 0 matches each.
+- **Backup and restore.**
+  - First attempt: the backup made with `smartlab_admin` had no stored procedures, because `mysqldump` needs `SHOW_ROUTINE` for procedures that root created (exit code 2). The grant was added to `sql/14_db_accounts.sql.example`.
+  - Second attempt: exit code 0 and no warnings. The restored scratch copy had identical row counts and identical `CHECKSUM TABLE` values for six tables, plus 4 procedures, 4 views and 22 CHECK constraints. A procedure call succeeded, and the scratch copy was then dropped.
+
+## Not tested
+
+- A real hosting provider (nothing was provisioned), real HTTPS certificates, and hosted MySQL over TLS (`DB_SSL_CA` is implemented but untested).
+- Response-time equality between unknown usernames and wrong passwords (the code checks a dummy hash, but timing was not measured).
+- Load or concurrency beyond the existing database tests TC53–TC54.

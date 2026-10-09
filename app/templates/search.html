@@ -35,7 +35,7 @@
     <header class="panel-head"><h2>Lab staff</h2></header>
     <ul class="result-list">
       {% for s in results.staff %}
-        <li><a class="strong" href="{{ url_for('staff.edit', staff_id=s.staff_id) }}">{{ s.staff_name }}</a><small>{{ s.designation }}</small></li>
+        <li>{% if can('manage_reference') %}<a class="strong" href="{{ url_for('staff.edit', staff_id=s.staff_id) }}">{{ s.staff_name }}</a>{% else %}<span class="strong">{{ s.staff_name }}</span>{% endif %}<small>{{ s.designation }}</small></li>
       {% else %}<li class="empty">No staff match.</li>{% endfor %}
     </ul>
   </section>

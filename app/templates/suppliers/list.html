@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-head">
   <h1>Suppliers</h1>
-  <a class="btn btn-primary" href="{{ url_for('suppliers.create') }}">+ Add supplier</a>
+  {% if can('manage_reference') %}<a class="btn btn-primary" href="{{ url_for('suppliers.create') }}">+ Add supplier</a>{% endif %}
 </div>
 <table>
   <thead><tr><th>Name</th><th>Contact</th><th>E-mail</th><th>Address</th><th class="num">Purchases</th><th class="num">Received total (INR)</th><th></th></tr></thead>
@@ -14,7 +14,7 @@
       <td>{{ s.supplier_name }}</td><td>{{ s.contact_number }}</td><td>{{ s.email or '' }}</td>
       <td>{{ s.address or '' }}</td><td class="num">{{ s.purchases }}</td><td class="num">{{ s.received_total|money }}</td>
       <td class="row-actions">
-        <a class="btn btn-small" href="{{ url_for('suppliers.edit', supplier_id=s.supplier_id) }}">Edit</a>
+        {% if can('manage_reference') %}<a class="btn btn-small" href="{{ url_for('suppliers.edit', supplier_id=s.supplier_id) }}">Edit</a>{% endif %}
         {{ delete_button(url_for('suppliers.delete', supplier_id=s.supplier_id), s.supplier_name) }}
       </td>
     </tr>

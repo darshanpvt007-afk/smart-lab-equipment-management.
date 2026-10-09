@@ -150,7 +150,7 @@ th a.sort-active, th a.sort-active span { color: var(--text); }
 .kpi-value { margin: 6px 0 !important; font-size: 14px; color: var(--muted); }
 .kpi-n { font-size: 28px; font-weight: 600; color: var(--text); letter-spacing: -.02em; margin-right: 2px; }
 .kpi-context { font-size: 12.5px; color: var(--muted); }
-.dash-grid td .strong, .nowrap { white-space: nowrap; }
+.dash-grid td:first-child .strong, .nowrap { white-space: nowrap; }
 .kpi-alert { border-left: 3px solid var(--late-accent); }
 .kpi-alert .kpi-n { color: var(--late-accent); }
 .meter { display: block; height: 6px; background: var(--grey-bg); border-radius: 99px; overflow: hidden; margin: 8px 0; }
@@ -300,3 +300,28 @@ pre.sql { background: #18212B; color: #E5E7EB; padding: 16px; border-radius: var
   .kpis { grid-template-columns: minmax(0, 1fr); }
   .user { display: none; }
 }
+
+/* ---------- sign-in page and account menu ---------- */
+body.bare { min-height: 100vh; display: grid; place-items: center; }
+.bare-main { width: 100%; max-width: 400px; padding: 24px 16px; }
+.bare-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; margin-bottom: 20px; justify-content: center; }
+.login-card { padding: 24px; }
+.login-card h1 { margin-bottom: 4px; }
+.login-card .page-sub { margin-bottom: 18px; }
+.login-error { margin: 0 0 14px; padding: 8px 12px; background: var(--bad-bg); border-radius: var(--radius-sm); }
+.btn-block { width: 100%; height: 40px; }
+.user-menu { position: relative; }
+.user-menu summary { list-style: none; cursor: pointer; border-radius: var(--radius-sm); padding: 4px 6px; }
+.user-menu summary::-webkit-details-marker { display: none; }
+.user-menu summary:hover { background: var(--bg); }
+.user-pop { position: absolute; right: 0; top: calc(100% + 6px); min-width: 180px; background: var(--surface);
+            border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgba(24, 33, 43, .12);
+            padding: 6px; display: flex; flex-direction: column; z-index: 40; }
+.user-pop a, .link-button { display: block; padding: 8px 10px; border-radius: 6px; color: var(--text); text-align: left; }
+.user-pop a:hover, .link-button:hover { background: var(--bg); text-decoration: none; }
+.user-pop form { margin: 0; }
+.link-button { width: 100%; border: 0; background: none; font: inherit; cursor: pointer; }
+input.checkbox { width: auto; height: auto; margin-right: 6px; vertical-align: middle; }
+.reset-card { margin-top: 16px; }
+.reset-card h2 { margin-top: 0; }
+@media (max-width: 1180px) { .user-menu .user-text { display: none; } }

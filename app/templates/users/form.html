@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "macros.html" import csrf with context %}
+{% block title %}{{ 'Add user' if is_new else 'Manage ' ~ item.username }}{% endblock %}
+{% block content %}
+<div class="page-head"><h1>{{ 'Add user' if is_new else 'Manage ' ~ item.username }}</h1></div>
+<form method="post" class="card">
+  {{ csrf() }}
+  {% if is_new %}
+    <div class="field {{ 'has-error' if errors.get('username') }}">
+      <label for="username">Username <span class="req">*</span></label>
+      <input id="username" name="username" required maxlength="40" autocomplete="off" value="{{ item.username or '' }}">
+      <small class="help">Lower-case letters, digits, dot, dash or underscore.</small>
+      {% if errors.get('username') %}<small class="error">{{ errors['username'] }}</small>{% endif %}
+    </div>
+    <div class="field {{ 'has-error' if errors.get('password') }}">
+      <label for="password">Initial password <span class="req">*</span></label>
+      <input id="password" name="password" type="password" required maxlength="128" autocomplete="new-password">
+      <small class="help">At least 12 characters. Give it to the person privately; they can change it after signing in.</small>
+      {% if errors.get('password') %}<small class="error">{{ errors['password'] }}</small>{% endif %}
+    </div>
+  {% endif %}
+  <div class="field {{ 'has-error' if errors.get('role') }}">
+    <label for="role">Role <span class="req">*</span></label>
+    <select id="role" name="role" required>
+      {% for key, label in role_labels.items() %}<option value="{{ key }}" {{ 'selected' if item.role == key }}>{{ label }}</option>{% endfor %}
+    </select>
+    {% if errors.get('role') %}<small class="error">{{ errors['role'] }}</small>{% endif %}
+  </div>
+  <div class="field">
+    <label for="staff_id">Linked lab staff record</label>
+    <select id="staff_id" name="staff_id">
+      <option value="">-- none --</option>
+      {% for s in staff %}<option value="{{ s.id }}" {{ 'selected' if item.staff_id|string == s.id|string }}>{{ s.name }}</option>{% endfor %}
+    </select>
+    <small class="help">Used as the default "Issued by" on the issue form.</small>
+    {% if errors.get('staff_id') %}<small class="error">{{ errors['staff_id'] }}</small>{% endif %}
+  </div>
+  {% if not is_new %}
+    <div class="field">
+      <label><input type="checkbox" name="is_active" value="1" {{ 'checked' if item.is_active }} class="checkbox"> Account is active</label>
+      <small class="help">Deactivating signs the person out immediately. Accounts are never deleted.</small>
+    </div>
+  {% endif %}
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">{{ 'Create account' if is_new else 'Save changes' }}</button>
+    <a class="btn btn-link" href="{{ url_for('users.list_users') }}">Cancel</a>
+  </div>
+</form>
+{% if not is_new %}
+<form method="post" action="{{ url_for('users.reset_password', user_id=item.user_id) }}" class="card reset-card">
+  {{ csrf() }}
+  <h2>Reset password</h2>
+  <div class="field">
+    <label for="new_pw">New password</label>
+    <input id="new_pw" name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password">
+  </div>
+  <button type="submit" class="btn">Reset password and sign out this account</button>
+</form>
+{% endif %}
+{% endblock %}

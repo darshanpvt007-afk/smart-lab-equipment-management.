@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Users</h1><p class="page-sub">Who can sign in, and what each role may do (docs/SECURITY.md).</p></div>
+  <a class="btn btn-primary" href="{{ url_for('users.create') }}">+ Add user</a>
+</div>
+<table>
+  <thead><tr><th>Username</th><th>Role</th><th>Linked staff</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead>
+  <tbody>
+  {% for u in rows %}
+    <tr>
+      <td class="mono">{{ u.username }}</td>
+      <td>{{ role_labels[u.role] }}</td>
+      <td>{{ u.staff_name or '-' }}</td>
+      <td>{% if u.is_active %}<span class="badge badge-available">Active</span>{% else %}<span class="badge badge-unavailable">Deactivated</span>{% endif %}</td>
+      <td>{{ u.last_login_at.strftime('%d %b %Y %H:%M') if u.last_login_at else 'Never' }}</td>
+      <td class="row-actions"><a class="btn btn-small" href="{{ url_for('users.edit', user_id=u.user_id) }}">Manage</a></td>
+    </tr>
+  {% else %}<tr><td colspan="6" class="muted">No accounts.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

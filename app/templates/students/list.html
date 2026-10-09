@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head">
   <h1>Students</h1>
-  <a class="btn btn-primary" href="{{ url_for('students.create') }}">+ Add student</a>
+  {% if can('edit_students') %}<a class="btn btn-primary" href="{{ url_for('students.create') }}">+ Add student</a>{% endif %}
 </div>
 
 <form method="get" class="filters">

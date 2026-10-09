@@ -1,12 +1,12 @@
 # Test Cases
 
-These are the test definitions, 186 in all, and every case is automated under the same ID. Results of the latest run are in `docs/TEST_REPORT.md`.
+These are the test definitions, 230 in all, and every case is automated under the same ID. Results of the latest run are in `docs/TEST_REPORT.md`.
 
 | IDs | Suite | Run with |
 |---|---|---|
-| TC01–TC74 | Database tests (A–H Review 2; I Review 3; L register-number check) | `bash tests/run_tests.sh` |
-| TA01–TA32, TA40–TA48 (99 test functions with parameters) | Web application tests (J) | `python -m pytest` |
-| TB01–TB13 | Browser walkthrough (K) | `python tests/browser_walkthrough.py` |
+| TC01–TC78 | Database tests (A–H Review 2; I Review 3; L register-number check; N sign-in migration) | `bash tests/run_tests.sh` |
+| TA01–TA32, TA40–TA48, TA50–TA74 (136 test functions with parameters) | Web application tests (J) | `python -m pytest` |
+| TB00–TB15 | Browser walkthrough (K) | `python tests/browser_walkthrough.py` |
 
 The automated runner works on a separate database, `smart_lab_equipment_test`, rebuilt from the scripts. To try a case by hand, run its SQL in the `mysql` client against `smart_lab_equipment_db`:
 - Cases marked **(rolls back)** or **(rejected)** leave the data unchanged.
@@ -212,6 +212,9 @@ The walkthrough uses a real Chromium browser against a freshly built test databa
 | TB11 | Equipment list: click *Needs attention*, then sort by *Last activity* | Rows = tab count; column marked ascending |
 | TB12 | Issue form for DMM-17B-0005: pick student 10, click *2 weeks* | Due date 2026-10-24; 4 checks passed; summary shows the serial |
 | TB13 | Phone width (390 px): open the menu | Sidebar hidden, then shown by the toggle; no sideways page scroll |
+| TB00 | Open `/equipment/` signed out; wrong password; right password | Sign-in page; "Invalid username or password."; back on the Equipment page |
+| TB14 | Sign in as a technician | No "Issue equipment" link; `/allocations/new` shows Error 403; maintenance Start buttons visible |
+| TB15 | Sign out from the account menu | "You have signed out."; the dashboard asks to sign in again |
 
 ## L. Register-number format (database, `tests/run_tests.sh`)
 
@@ -222,3 +225,45 @@ The CHECK `chk_student_register_no` in `sql/02_create_tables.sql` enforces the s
 | TC72 | Malformed number **(rejected)** | `INSERT INTO student (student_name, register_number, department, year_of_study, email) VALUES ('Bad Register','24BC1012','CSE',2,'bad.register@students.example.edu');` | ERROR 3819 |
 | TC73 | Lower-case number **(rejected)** | Same insert with `'26bce1997'` | ERROR 3819 (proves the check is case-sensitive) |
 | TC74 | Constraint declared and data valid | `information_schema.TABLE_CONSTRAINTS` for `student`, plus a count of stored numbers that do not match | `chk_student_register_no,YES,0` |
+
+## M. Sign-in, roles and web security (`python -m pytest`, `tests/web/test_security.py`)
+
+Every test uses fake accounts created in `smart_lab_equipment_apptest` (one per role) with a test-only password.
+
+| ID | Objective | Steps | Expected |
+|---|---|---|---|
+| TA50 | Successful sign-in | POST `/login` with `next=/equipment/` | 302 to `/equipment/`; session holds the user; CSRF token renewed; `last_login_at` set; cookie `HttpOnly`, `SameSite=Lax` |
+| TA51 | No account enumeration | Wrong password; unknown username | Both 401 with the same message; not signed in |
+| TA52 | Sign-out | GET `/logout`; POST without token; POST with token | 405; 400; 302 to `/login`, session emptied, dashboard asks to sign in |
+| TA53 | Signed-out access | Every protected route | GET: 302 to `/login?next=…`; POST: 401 |
+| TA54 | Login CSRF | POST `/login` without token | 400; not signed in |
+| TA55 | Complete route map | Compare routes, permission map and sample URLs | Identical sets; permissions equal the documented policy |
+| TA56 | Role matrix (×4 roles) | Every route as each role | Allowed: not 401/403; denied: exactly 403 |
+| TA57 | Denied writes change nothing | Technician deletes/issues; inventory staff starts maintenance, adds a lab | 403 each; row counts and job status unchanged |
+| TA58 | Fail closed | Add a route without a permission rule | 403 |
+| TA59 | Interface hides unavailable actions | Pages as technician, inventory staff, lab manager, admin | Buttons/links only for permitted actions; Users link only for admin |
+| TA60 | CSRF on state changes | POST without token / with forged token | 400; nothing saved |
+| TA61 | Password change | Wrong current password; correct change | 400; 302, other session signed out, new hash verifies |
+| TA62 | Deactivation | Admin deactivates the lab manager | Their open session ends; sign-in refused |
+| TA63 | Cookie settings | Development and production config | HttpOnly, SameSite=Lax; Secure in production; 8-hour lifetime |
+| TA64 | Username lockout | 5 wrong passwords, then the right one | 429; other accounts unaffected |
+| TA65 | Address lockout | 20 failures with different usernames | Next sign-in from that address 429 |
+| TA66 | Counter reset and pruning | Success after 4 failures; age rows 2 days | Count restarts; rows older than 1 day deleted |
+| TA67 | Open redirect (×5) | `next=//evil…`, `https://evil…`, `/\evil…`, `javascript:`, encoded CRLF | Never redirected off the site |
+| TA68 | Password storage and policy | Two accounts, same password; weak passwords | `scrypt:` hashes, different salts; short/simple/containing-username refused |
+| TA69 | Admin self-lockout | Admin demotes themselves | 400; role unchanged |
+| TA69b | Friendly account errors | Duplicate username; link to staff id 999 | 400 with "already exists" / "does not exist", no 500 |
+| TA70 | `create-user` command | Create; duplicate; weak password | Created without echoing the password; duplicate and weak refused |
+| TA71 | Production configuration (×5) | Missing/short `SECRET_KEY`, `DB_USER=root`, no `DB_PASSWORD`, `COOKIE_SECURE=0` | `ConfigError` naming the setting, never its value |
+| TA72 | Headers, size limit, health, error page | Dashboard headers; 70 KB form; `/healthz` up and down; page with the database unavailable | CSP, nosniff, DENY, no-store, no inline handlers; 413; 200/503 JSON; 500 page without internal details |
+| TA73 | Migration safety | Run `13_app_users.sql` twice on a database with data | Only CREATE statements; every row count unchanged |
+| TA74 | Test-database guard | Inspect test settings | Tests and walkthrough target only `smart_lab_equipment_apptest` |
+
+## N. Sign-in migration (database, `tests/run_tests.sh`)
+
+| ID | Objective | Steps | Expected |
+|---|---|---|---|
+| TC75 | Migration 13 applied in the clean build | Look for the two tables; count accounts | `2,0`: tables exist, no default accounts |
+| TC76 | Re-run is safe | Add an account, run `13_app_users.sql` again | Runs without errors or warnings |
+| TC77 | …data preserved | Row counts of student, equipment, allocation, maintenance, app_user before and after | Identical |
+| TC78 | Account CHECKs | `INSERT` username `'Bad Name'`, role `'superuser'` | ERROR 3819 |

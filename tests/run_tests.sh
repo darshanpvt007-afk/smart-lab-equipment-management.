@@ -95,28 +95,31 @@ echo "---------------------------------------------------------------------"
 $MYSQL_CMD -e "DROP DATABASE IF EXISTS ${TEST_DB}"
 
 # ---------- 1. build & schema ----------------------------------------
-run_scripts TC01 "Clean build: 01, 02, 03, 08, 11, 12 run without errors or warnings" \
+run_scripts TC01 "Clean build: 01, 02, 03, 08, 11, 12, 13 run without errors or warnings" \
     01_create_database.sql 02_create_tables.sql 03_insert_sample_data.sql \
-    08_create_views.sql 11_transaction_procedures.sql 12_maintenance_procedures.sql
+    08_create_views.sql 11_transaction_procedures.sql 12_maintenance_procedures.sql 13_app_users.sql
 
+# TC02-TC05 check the 10 domain tables of the ER design; the two sign-in
+# tables from file 13 (app_user, login_attempt) are tested in TC75-TC78.
+APP_TABLES="('app_user','login_attempt')"
 expect_value TC02 "All 10 base tables exist" \
  "SELECT GROUP_CONCAT(TABLE_NAME ORDER BY TABLE_NAME) FROM information_schema.TABLES
-  WHERE TABLE_SCHEMA='${TEST_DB}' AND TABLE_TYPE='BASE TABLE'" \
+  WHERE TABLE_SCHEMA='${TEST_DB}' AND TABLE_TYPE='BASE TABLE' AND TABLE_NAME NOT IN ${APP_TABLES}" \
  "equipment,equipment_allocation,equipment_category,equipment_return,lab,lab_staff,maintenance,purchase,student,supplier"
 
 expect_value TC03 "Every table has a PRIMARY KEY" \
  "SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
-  WHERE TABLE_SCHEMA='${TEST_DB}' AND CONSTRAINT_TYPE='PRIMARY KEY'" "10"
+  WHERE TABLE_SCHEMA='${TEST_DB}' AND CONSTRAINT_TYPE='PRIMARY KEY' AND TABLE_NAME NOT IN ${APP_TABLES}" "10"
 
 expect_value TC04 "All 10 foreign keys declared with the right parent tables" \
  "SELECT GROUP_CONCAT(CONCAT(TABLE_NAME,'.',COLUMN_NAME,'->',REFERENCED_TABLE_NAME) ORDER BY TABLE_NAME, COLUMN_NAME)
   FROM information_schema.KEY_COLUMN_USAGE
-  WHERE TABLE_SCHEMA='${TEST_DB}' AND REFERENCED_TABLE_NAME IS NOT NULL" \
+  WHERE TABLE_SCHEMA='${TEST_DB}' AND REFERENCED_TABLE_NAME IS NOT NULL AND TABLE_NAME NOT IN ${APP_TABLES}" \
  "equipment.category_id->equipment_category,equipment.lab_id->lab,equipment.purchase_id->purchase,equipment_allocation.equipment_id->equipment,equipment_allocation.staff_id->lab_staff,equipment_allocation.student_id->student,equipment_return.allocation_id->equipment_allocation,maintenance.equipment_id->equipment,maintenance.staff_id->lab_staff,purchase.supplier_id->supplier"
 
 expect_value TC05 "Foreign keys use ON DELETE RESTRICT (history cannot be cascaded away)" \
  "SELECT GROUP_CONCAT(DISTINCT DELETE_RULE) FROM information_schema.REFERENTIAL_CONSTRAINTS
-  WHERE CONSTRAINT_SCHEMA='${TEST_DB}'" "RESTRICT"
+  WHERE CONSTRAINT_SCHEMA='${TEST_DB}' AND TABLE_NAME NOT IN ${APP_TABLES}" "RESTRICT"
 
 expect_value TC06 "Sample data row counts (lab..maintenance)" \
  "SELECT CONCAT_WS(',',(SELECT COUNT(*) FROM lab),(SELECT COUNT(*) FROM equipment_category),
@@ -418,7 +421,7 @@ fi
 
 run_scripts TC62 "Rebuild after reset succeeds (reproducible from a clean server)" \
     01_create_database.sql 02_create_tables.sql 03_insert_sample_data.sql \
-    08_create_views.sql 11_transaction_procedures.sql 12_maintenance_procedures.sql
+    08_create_views.sql 11_transaction_procedures.sql 12_maintenance_procedures.sql 13_app_users.sql
 check_validation TC63 "Rebuilt database passes validation again"
 
 # ---------- 9. maintenance workflow (Review 3, file 12) --------------
@@ -478,6 +481,21 @@ expect_value TC74 "chk_student_register_no is declared and enforced on student" 
   WHERE tc.TABLE_SCHEMA='${TEST_DB}' AND tc.TABLE_NAME='student'
     AND tc.CONSTRAINT_NAME='chk_student_register_no'" \
  "chk_student_register_no,YES,0"
+
+# ---------- 11. sign-in tables (file 13, additive migration) --------
+expect_value TC75 "Migration 13 created app_user and login_attempt with no accounts" \
+ "SELECT CONCAT_WS(',', (SELECT COUNT(*) FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA='${TEST_DB}' AND TABLE_NAME IN ('app_user','login_attempt')),
+   (SELECT COUNT(*) FROM app_user))" "2,0"
+
+q "INSERT INTO app_user (username, password_hash, role) VALUES ('keep.me','scrypt:not-a-real-hash','admin')" >/dev/null
+BEFORE=$(q "SELECT CONCAT_WS(',',(SELECT COUNT(*) FROM student),(SELECT COUNT(*) FROM equipment),(SELECT COUNT(*) FROM equipment_allocation),(SELECT COUNT(*) FROM maintenance),(SELECT COUNT(*) FROM app_user))")
+run_scripts TC76 "Re-running migration 13 on a database with data succeeds (idempotent)" 13_app_users.sql
+expect_value TC77 "...and every existing row is still there, including the account" \
+ "SELECT CONCAT_WS(',',(SELECT COUNT(*) FROM student),(SELECT COUNT(*) FROM equipment),(SELECT COUNT(*) FROM equipment_allocation),(SELECT COUNT(*) FROM maintenance),(SELECT COUNT(*) FROM app_user))" "$BEFORE"
+
+expect_error TC78 "Unknown role and badly formed username are rejected (CHECK)" \
+ "INSERT INTO app_user (username, password_hash, role) VALUES ('Bad Name','x','superuser')" 3819
 
 # ---------- summary ---------------------------------------------------
 if [ "${KEEP_TEST_DB:-0}" != 1 ]; then
