@@ -1,266 +1,201 @@
 # smart-lab-equipment-management.
 Smart Laboratory Equipment Inventory, Allocation and Maintenance Management System
 
-**Database Systems project. Review 2: Database Design & SQL Implementation.**
+**Database Systems project: a MySQL database (Review 2) and a working web prototype connected to it (Review 3).**
 
-A MySQL database that records a college's laboratories, equipment, categories, suppliers, purchases, students, lab staff, equipment allocations, returns and maintenance. It is a direct implementation of the ER design approved in Review 1.
+The system records a college's laboratories, equipment, categories, suppliers, purchases, students, lab staff, equipment allocations, returns and maintenance. It implements the ER design approved in Review 1. Lab staff use a Flask web application to search the inventory, issue and receive equipment, run maintenance, keep master data up to date, and view reports.
 
 ---
 
-## 1. Scope of Review 2
+## 1. What each review delivered
 
-| Required by the review instructions | Where |
-|---|---|
-| Conversion of the ER diagram into relational tables | `sql/02_create_tables.sql`, `docs/RELATIONAL_SCHEMA.md` |
-| Primary keys and foreign keys | `sql/02_create_tables.sql` |
-| Integrity constraints | `sql/02_create_tables.sql` (NOT NULL, UNIQUE, CHECK, FK), `sql/09_validation_queries.sql` |
-| Table creation | `sql/01_create_database.sql`, `sql/02_create_tables.sql` |
-| Sample data insertion | `sql/03_insert_sample_data.sql` |
-| SELECT, WHERE, ORDER BY | `sql/04_basic_queries.sql` |
-| GROUP BY, HAVING, aggregate functions | `sql/05_aggregate_queries.sql` |
-| JOIN | `sql/06_join_queries.sql` |
-| Subqueries | `sql/07_subqueries.sql` |
-| Views | `sql/08_create_views.sql` |
-
-In addition:
-- **Transactions:** `sql/11_transaction_procedures.sql` holds atomic allocation and return procedures that are safe under concurrency.
-- **Tests:** 63 automated tests (`tests/`).
-- **Faculty demonstration guide:** includes viva answers (`docs/FACULTY_DEMONSTRATION.md`).
+| Review | Requirement | Where |
+|---|---|---|
+| 2 | ER diagram converted into tables; primary and foreign keys; integrity constraints | `sql/02_create_tables.sql`, `docs/RELATIONAL_SCHEMA.md`, `docs/DESIGN_DECISIONS.md` |
+| 2 | Sample data | `sql/03_insert_sample_data.sql` |
+| 2 | SELECT, WHERE, ORDER BY, GROUP BY, HAVING, aggregates, JOIN, subqueries | `sql/04`–`07`, `docs/SQL_QUERY_CATALOG.md` |
+| 2 | Views | `sql/08_create_views.sql` |
+| 3 | Simple user interface | `app/templates/`, `app/static/style.css` |
+| 3 | Database connectivity | `app/db.py` (mysql-connector-python) |
+| 3 | CRUD operations | Labs, categories, suppliers, purchases, students, staff, equipment (`app/routes/`) |
+| 3 | Search and retrieval | Equipment and student search and filters; detail pages with full history |
+| 3 | Important SQL queries through the application | Reports page (`app/routes/reports.py`), dashboard, issue/return/maintenance workflows calling stored procedures |
+| 3 | Input validation | `app/validators.py` and HTML form attributes; database constraints as the final guard |
+| 3 | Test cases | `tests/` (database, application and browser tests: 166 in total) |
+| 3 | Final database | `sql/01`–`12` (`sql/12_maintenance_procedures.sql` is new in Review 3) |
+| 3 | Final report and presentation | Delivered separately (see `docs/REVIEW3_IMPLEMENTATION.md`) |
 
 ## 2. Technology
 
 | | |
 |---|---|
-| DBMS | **MySQL 8.0.16 or newer** (needed for enforced CHECK constraints and functional indexes). Tested on MySQL 8.0.46. |
-| Database | `smart_lab_equipment_db`, character set `utf8mb4`, collation `utf8mb4_0900_ai_ci`, engine InnoDB |
-| Client | `mysql` command-line client (MySQL Workbench also works) |
-| Tests | `bash` + `mysql` client. No other dependencies. |
+| Database | **MySQL 8.0.16 or newer**, needed for enforced CHECK constraints and functional indexes. Tested on 8.0.46. |
+| Application | **Python 3.10+**, Flask 3.1, mysql-connector-python. Tested on Python 3.13. |
+| Browser | Any modern browser. The app uses no JavaScript framework and needs no internet connection. |
+| Tests | `bash` + `mysql` client (database tests); `pytest` (application tests); Playwright + Chromium (optional browser walkthrough) |
 
 ## 3. Directory structure
 
 ```
 .
 ├── README.md
-├── docs/
-│   ├── REVIEW2_IMPLEMENTATION_PLAN.md   requirement → file → test mapping
-│   ├── RELATIONAL_SCHEMA.md             every table, column, key and constraint
-│   ├── DESIGN_DECISIONS.md              why each decision was made (D-01 … D-19)
-│   ├── NORMALIZATION.md                 1NF / 2NF / 3NF with this schema's FDs
-│   ├── SQL_QUERY_CATALOG.md             Q01–Q55, V01–V16, views, procedures
-│   ├── TEST_REPORT.md                   results of the latest test run
-│   ├── FACULTY_DEMONSTRATION.md         15-step demo script + viva Q&A
-│   └── TROUBLESHOOTING.md               common errors and fixes
+├── run.py                      start the web app:  python run.py
+├── requirements.txt            Flask, mysql-connector-python, pytest
+├── .env.example                copy to .env and add your MySQL login (never committed)
+├── pytest.ini
+├── app/                        the Flask application
+│   ├── __init__.py             create_app(): config, blueprints, CSRF check, error pages
+│   ├── db.py                   connection per request, parameterised queries, error messages
+│   ├── validators.py           form validation that mirrors the database rules
+│   ├── routes/                 dashboard, equipment, allocations, maintenance, students,
+│   │                           staff, labs, categories, suppliers, purchases, reports
+│   ├── templates/              Jinja HTML pages + shared form macros
+│   └── static/style.css
 ├── sql/
-│   ├── 01_create_database.sql
-│   ├── 02_create_tables.sql
-│   ├── 03_insert_sample_data.sql
-│   ├── 04_basic_queries.sql             Q01–Q15
-│   ├── 05_aggregate_queries.sql         Q16–Q27
-│   ├── 06_join_queries.sql              Q28–Q38
-│   ├── 07_subqueries.sql                Q39–Q49
-│   ├── 08_create_views.sql              4 views + Q50–Q55
-│   ├── 09_validation_queries.sql        V01–V16
-│   ├── 10_reset_database.sql            DESTRUCTIVE: drops the database
-│   └── 11_transaction_procedures.sql    sp_allocate_equipment, sp_return_equipment
-└── tests/
-    ├── README.md
-    ├── test_cases.md                    TC01–TC63 definitions
-    └── run_tests.sh                     automated runner (uses a separate test DB)
+│   ├── 01_create_database.sql … 03_insert_sample_data.sql
+│   ├── 04_basic_queries.sql … 07_subqueries.sql        Q01–Q49
+│   ├── 08_create_views.sql                              4 views + Q50–Q55
+│   ├── 09_validation_queries.sql                        V01–V16
+│   ├── 10_reset_database.sql                            DESTRUCTIVE: drops the database
+│   ├── 11_transaction_procedures.sql                    sp_allocate_equipment, sp_return_equipment
+│   └── 12_maintenance_procedures.sql                    sp_start_maintenance, sp_complete_maintenance
+├── tests/
+│   ├── run_tests.sh            database tests TC01–TC71
+│   ├── web/                    application tests TA01–TA32 (pytest)
+│   ├── browser_walkthrough.py  browser tests TB01–TB10 + screenshots
+│   ├── test_cases.md           every test case described
+│   └── README.md
+└── docs/
+    ├── REVIEW3_IMPLEMENTATION.md   Review 3: requirement mapping, app design, how to demo
+    ├── FACULTY_DEMONSTRATION.md    demo scripts (SQL and app) + viva Q&A
+    ├── TEST_REPORT.md              results of the latest test runs
+    ├── DESIGN_DECISIONS.md         D-01 … D-22
+    ├── RELATIONAL_SCHEMA.md, NORMALIZATION.md, SQL_QUERY_CATALOG.md
+    ├── TROUBLESHOOTING.md
+    ├── REVIEW2_IMPLEMENTATION_PLAN.md
+    └── screenshots/                captured by the browser walkthrough
 ```
 
-## 4. Database design summary
-
-The design has ten tables, one per Review 1 entity. **Equipment** is the central table.
+## 4. Design summary
 
 ```
 supplier ──1:N── purchase ──1:N── equipment ──N:1── equipment_category
                                     │    └──N:1── lab
                     ┌───────────────┼──────────────────┐
                    1:N             1:N                1:N
-                    │               │                  │
       equipment_allocation ──N:1── student        maintenance ──N:1── lab_staff
              │      └──N:1── lab_staff (issued by)
             1:1 (optional)
-             │
       equipment_return
 ```
 
-| Design point | How it is implemented |
+| Topic | How it works |
 |---|---|
-| Keys and relationships | Integer `AUTO_INCREMENT` primary keys. Each 1:N relationship is a `NOT NULL` foreign key on the N side. Allocation→Return (1:1) is a `UNIQUE NOT NULL` foreign key in `equipment_return`. |
-| Business identifiers | `register_number`, `serial_number`, `(supplier_id, invoice_number)` and e-mails are `UNIQUE`. |
-| Value domains | CHECK constraints restrict statuses, conditions, years, amounts and date order. |
-| History preservation | All foreign keys are `ON DELETE RESTRICT`, so allocation, return, purchase and maintenance history cannot be deleted by cascade. |
-| One item, one borrower | A functional UNIQUE index allows only one active ('Issued') allocation per equipment item. It also holds under concurrent transactions. |
-| Availability | `availability_status` is a stored Review 1 attribute. It is changed atomically by the procedures in file 11 and audited by validation queries V10–V12. |
+| Keys | Integer `AUTO_INCREMENT` primary keys. Each foreign key is `NOT NULL` and `ON DELETE RESTRICT`, so history can never be deleted by cascade. |
+| Business identifiers | Register numbers, serial numbers, e-mails and invoice numbers (unique per supplier) are `UNIQUE`. |
+| One active allocation | A functional UNIQUE index lets each equipment item have only one active (`Issued`) allocation. It holds even under concurrent transactions. |
+| Status changes | Changes that touch several tables run in stored procedures: one transaction, row locks, rollback on any error. The app calls these procedures and never updates a status directly. |
+| Application layers | browser → route (one Flask blueprint per area) → validators → `db.py` (parameterised SQL only) → MySQL. |
 
-Full details: `docs/RELATIONAL_SCHEMA.md` and `docs/DESIGN_DECISIONS.md`.
+## 5. Set up the database
 
-## 5. Installation prerequisites
-
-1. Install **MySQL Server 8.0** (Community Edition): <https://dev.mysql.com/downloads/mysql/>
-   - Windows: use the MySQL Installer and note the root password.
-   - Ubuntu: `sudo apt install mysql-server`
-   - macOS: `brew install mysql`
-2. Start the server and check that it responds:
-   ```bash
-   mysql --version          # should show 8.0.x
-   mysqladmin -u root -p ping
-   ```
-
-**Credentials:** never write a password into the scripts. Use one of these:
-- `-p` with no value, so `mysql` prompts for the password
-- a saved, encrypted login path:
-  ```bash
-  mysql_config_editor set --login-path=smartlab --host=localhost --user=root --password
-  mysql --login-path=smartlab      # then use this instead of "mysql -u root -p"
-  ```
-- on Ubuntu, `sudo mysql` (socket authentication for root)
-
-## 6. Build the database
-
-Run these from the project folder, in this order. Each command asks for the MySQL password.
+Install **MySQL Server 8.0** (<https://dev.mysql.com/downloads/mysql/>; Ubuntu `sudo apt install mysql-server`; macOS `brew install mysql`). Then, from the project folder:
 
 ```bash
-mysql -u root -p < sql/01_create_database.sql        # 1. database (utf8mb4)
-mysql -u root -p < sql/02_create_tables.sql          # 2. ten tables + constraints
-mysql -u root -p < sql/03_insert_sample_data.sql     # 3. sample data (one transaction)
-mysql -u root -p < sql/08_create_views.sql           # 4. views (+ demo queries)
-mysql -u root -p < sql/11_transaction_procedures.sql # 5. stored procedures
+mysql -u root -p < sql/01_create_database.sql
+mysql -u root -p < sql/02_create_tables.sql
+mysql -u root -p < sql/03_insert_sample_data.sql
+mysql -u root -p < sql/08_create_views.sql
+mysql -u root -p < sql/11_transaction_procedures.sql
+mysql -u root -p < sql/12_maintenance_procedures.sql
 ```
 
-Or, inside the `mysql` client started from the project folder:
+Windows PowerShell does not support `<`. Use `Get-Content sql\01_create_database.sql | mysql -u root -p`, or `SOURCE sql/01_create_database.sql;` inside the `mysql` client.
+
+It is better to give the application its own MySQL account than to use `root`:
 
 ```sql
-SOURCE sql/01_create_database.sql;
-SOURCE sql/02_create_tables.sql;
-SOURCE sql/03_insert_sample_data.sql;
-SOURCE sql/08_create_views.sql;
-SOURCE sql/11_transaction_procedures.sql;
+CREATE USER 'labadmin'@'localhost' IDENTIFIED BY 'choose-a-password';
+GRANT ALL PRIVILEGES ON smart_lab_equipment_db.* TO 'labadmin'@'localhost';
 ```
 
-On Windows Command Prompt, use the full path if needed: `mysql -u root -p < C:\path\to\project\sql\01_create_database.sql`. In PowerShell the `<` redirection does not work; use `Get-Content sql\01_create_database.sql | mysql -u root -p`, or use `SOURCE` inside the client.
-
-`03` prints the row count of every table: lab 4, equipment_category 6, supplier 4, purchase 7, student 10, lab_staff 4, equipment 20, equipment_allocation 20, equipment_return 14, maintenance 11.
-
-## 7. Run the query scripts
-
-The `-t` option prints results as tables.
+## 6. Run the web application
 
 ```bash
-mysql -u root -p -t < sql/04_basic_queries.sql       # Q01–Q15  SELECT / WHERE / ORDER BY
-mysql -u root -p -t < sql/05_aggregate_queries.sql   # Q16–Q27  aggregates, GROUP BY, HAVING
-mysql -u root -p -t < sql/06_join_queries.sql        # Q28–Q38  INNER / LEFT / multi-table JOIN
-mysql -u root -p -t < sql/07_subqueries.sql          # Q39–Q49  subqueries
-mysql -u root -p -t < sql/08_create_views.sql        # views + Q50–Q55
-mysql -u root -p -t < sql/09_validation_queries.sql  # V01–V16  integrity checks
+python -m venv .venv
+source .venv/bin/activate            # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env                 # Windows: copy .env.example .env
+# edit .env: DB_USER, DB_PASSWORD, SECRET_KEY
+python run.py
 ```
 
-Each query has a comment giving its ID, purpose and expected result. `docs/SQL_QUERY_CATALOG.md` lists them all.
+Then open **http://127.0.0.1:5000**.
 
-Date-based queries (overdue loans) use the fixed reference date `@ref_date = '2026-10-10'` so that results are repeatable. Replace it with `CURDATE()` for live use.
+- **Configuration:** settings come from environment variables or the git-ignored `.env` file. Passwords never appear in the code.
+- **Demo date:** `APP_REFERENCE_DATE=2026-10-10` makes "today" match the sample data, so the dashboard shows the 3 overdue loans. Remove that line for real use.
 
-## 8. Inspect the tables, keys and constraints
+| Page | What it does |
+|---|---|
+| Dashboard | Inventory counts by status, overdue loans with a Return button, open maintenance jobs |
+| Equipment | Search by name or serial; filter by lab, category and availability; add, edit, delete; detail page with allocation and maintenance history |
+| Allocations | Issued / overdue / returned / all lists; Issue form (`sp_allocate_equipment`); Return form (`sp_return_equipment`) |
+| Maintenance | Schedule a job; Start (`sp_start_maintenance`); Complete with cost and condition (`sp_complete_maintenance`) |
+| Students | Search by name or register number; filter by department and year; add, edit, delete; history |
+| Staff, Labs, Categories, Suppliers, Purchases | List with counts and totals; add, edit, delete |
+| Reports | 8 reports, each showing its SQL next to the live result |
 
-```sql
-USE smart_lab_equipment_db;
-SHOW TABLES;                                   -- 10 tables + 4 views
-DESCRIBE equipment;                            -- columns, PRI / UNI / MUL keys
-SHOW CREATE TABLE equipment_allocation\G       -- full definition incl. FKs and CHECKs
-SHOW INDEX FROM equipment_allocation;
-
--- primary / unique / foreign keys and checks of every table
-SELECT TABLE_NAME, CONSTRAINT_NAME, CONSTRAINT_TYPE
-FROM information_schema.TABLE_CONSTRAINTS
-WHERE TABLE_SCHEMA = 'smart_lab_equipment_db'
-ORDER BY TABLE_NAME, CONSTRAINT_TYPE;
-
--- every foreign key and the table it references
-SELECT TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
-FROM information_schema.KEY_COLUMN_USAGE
-WHERE TABLE_SCHEMA = 'smart_lab_equipment_db' AND REFERENCED_TABLE_NAME IS NOT NULL;
-
--- CHECK constraint rules
-SELECT CONSTRAINT_NAME, CHECK_CLAUSE
-FROM information_schema.CHECK_CONSTRAINTS
-WHERE CONSTRAINT_SCHEMA = 'smart_lab_equipment_db';
-```
-
-## 9. Test the views
-
-```sql
-SHOW FULL TABLES WHERE Table_type = 'VIEW';
-SELECT * FROM vw_equipment_inventory;          -- 20 rows
-SELECT * FROM vw_outstanding_allocations;      -- 6 rows
-SELECT * FROM vw_maintenance_history;          -- 11 rows
-SELECT * FROM vw_allocation_history WHERE register_number = '24BCE1012';  -- 4 rows
-```
-
-## 10. Allocate and return equipment (transactions)
-
-```sql
-CALL sp_allocate_equipment(15, 10, 1, '2026-10-10', '2026-10-17', @id);  -- equipment, student, staff, date, due
-SELECT @id;
-CALL sp_return_equipment(@id, '2026-10-10', 'Good', 'Returned complete');
-```
-
-These calls **change the data**. Reset and rebuild (section 12) to return to the documented sample state.
-
-## 11. Run the automated tests
+## 7. Run the SQL scripts directly (Review 2)
 
 ```bash
-bash tests/run_tests.sh
-# or, with a saved login path:
-MYSQL_CMD="mysql --login-path=smartlab" bash tests/run_tests.sh
+mysql -u root -p -t < sql/04_basic_queries.sql        # Q01–Q15
+mysql -u root -p -t < sql/05_aggregate_queries.sql    # Q16–Q27
+mysql -u root -p -t < sql/06_join_queries.sql         # Q28–Q38
+mysql -u root -p -t < sql/07_subqueries.sql           # Q39–Q49
+mysql -u root -p -t < sql/08_create_views.sql         # views + Q50–Q55
+mysql -u root -p -t < sql/09_validation_queries.sql   # V01–V16
 ```
 
-The runner builds and tests a **separate** database, `smart_lab_equipment_test`, and drops it at the end. Your development database is not touched. Expected last line: `Passed: 63   Failed: 0   Total: 63`. See `tests/README.md` and `docs/TEST_REPORT.md`.
+## 8. Run the tests
 
-## 12. Reset the development database (destructive)
-
-`sql/10_reset_database.sql` runs `DROP DATABASE smart_lab_equipment_db`. **All tables, views, procedures and data are permanently deleted.** No other script runs it. Use it only on purpose:
+All three suites build their own separate databases and never touch `smart_lab_equipment_db`.
 
 ```bash
-# optional backup first
+bash tests/run_tests.sh                     # database: expect "Passed: 71   Failed: 0   Total: 71"
+python -m pytest                            # application: expect "85 passed"
+python tests/browser_walkthrough.py         # optional, needs: pip install playwright && python -m playwright install chromium
+```
+
+Both the application tests and the browser walkthrough read the same `DB_*` environment variables as the app. On Windows, run `run_tests.sh` from Git Bash or WSL. More detail is in `tests/README.md`; results are in `docs/TEST_REPORT.md`.
+
+## 9. Reset the development database (destructive)
+
+`sql/10_reset_database.sql` runs `DROP DATABASE smart_lab_equipment_db`, permanently deleting everything in it. Nothing runs it automatically. Back up first, then rebuild with section 5:
+
+```bash
 mysqldump -u root -p --routines smart_lab_equipment_db > backup.sql
-# reset, then rebuild with the commands in section 6
 mysql -u root -p < sql/10_reset_database.sql
 ```
 
-## 13. Common errors
+## 10. Common errors
 
-| Error | Usual cause | Fix |
-|---|---|---|
-| `ERROR 2002 / 2003 Can't connect` | Server not running | Start the MySQL service |
-| `ERROR 1045 Access denied` | Wrong user or password | Check the credentials; on Ubuntu try `sudo mysql` |
-| `ERROR 1046 No database selected` | Statement typed outside the scripts | `USE smart_lab_equipment_db;` |
-| `ERROR 1050 Table already exists` | `02` run twice | Reset (section 12), then rebuild |
-| `ERROR 1062 Duplicate entry` | `03` run twice, or a duplicate unique value | Do not reload the data; use a new value |
-| `ERROR 1452 / 1451` | Foreign key: missing parent / parent still has history | Insert the parent first; history rows block deletes by design |
-| `ERROR 3819 Check constraint` | Value outside the allowed domain | See the constraint name in docs/RELATIONAL_SCHEMA.md |
-| `ERROR 1644 Allocation refused …` | Business rule in a procedure | Read the message; nothing was changed |
+| Symptom | Fix |
+|---|---|
+| `ModuleNotFoundError: No module named 'flask'` | Activate the virtual environment, then `pip install -r requirements.txt` |
+| App shows "Error 500 … Check that the MySQL server is running" | Start MySQL; check `DB_USER` / `DB_PASSWORD` in `.env` |
+| `Access denied for user` | Wrong credentials in `.env`, or the account lacks privileges (section 5) |
+| `Address already in use` on port 5000 | Set `PORT=5001` in `.env` |
+| "The form has expired" | The session restarted; reload the page and submit again |
+| `PROCEDURE … does not exist` | Run `sql/11_…` and `sql/12_…` |
 
-More problems and fixes: `docs/TROUBLESHOOTING.md`.
+More in `docs/TROUBLESHOOTING.md`.
 
-## 14. Status: implemented vs. Review 3
+## 11. Known limitations
 
-**Implemented and tested in Review 2:**
-- the 10-table schema with all keys and constraints
-- realistic sample data
-- 55 demonstration queries
-- 4 views
-- 16 validation checks
-- 2 transaction procedures
-- 63 automated tests (all passing on MySQL 8.0.46)
-- full documentation
+- No login or user roles.
+- Reminders are shown on the dashboard, not e-mailed.
+- Department is free text.
+- No retired status for equipment.
+- Tested on Linux with MySQL 8.0.46 only.
 
-**Planned for Review 3:**
-- simple user interface
-- application database connectivity
-- CRUD screens
-- search and retrieval forms
-- input validation in the UI
-- calling the important queries and procedures from the application
-- a maintenance start/complete procedure that updates availability
-- overdue and maintenance reminder screens, built on Q53 / V15 / V16
-- final test cases, final report and presentation
+`docs/REVIEW3_IMPLEMENTATION.md` lists the suggested next steps.

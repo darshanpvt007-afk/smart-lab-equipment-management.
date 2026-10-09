@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge, delete_button with context %}
+{% block title %}{{ item.serial_number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ item.equipment_name }} <small>{{ item.serial_number }}</small></h1>
+  <div class="actions">
+    {% if item.availability_status == 'Available' %}
+      <a class="btn btn-primary" href="{{ url_for('allocations.issue', equipment_id=item.equipment_id) }}">Issue</a>
+    {% endif %}
+    <a class="btn" href="{{ url_for('maintenance.schedule', equipment_id=item.equipment_id) }}">Schedule maintenance</a>
+    <a class="btn" href="{{ url_for('equipment.edit', equipment_id=item.equipment_id) }}">Edit</a>
+    {{ delete_button(url_for('equipment.delete', equipment_id=item.equipment_id), 'this equipment') }}
+  </div>
+</div>
+
+<dl class="details">
+  <dt>Availability</dt><dd>{{ badge(item.availability_status) }}</dd>
+  <dt>Condition</dt><dd>{{ item.equipment_condition }}</dd>
+  <dt>Category</dt><dd>{{ item.category_name }}</dd>
+  <dt>Laboratory</dt><dd>{{ item.lab_name }} ({{ item.lab_location }})</dd>
+  <dt>Purchase</dt><dd>{{ item.invoice_number }}, {{ item.purchase_date }}, {{ item.supplier_name }}</dd>
+</dl>
+
+<h2>Allocation history</h2>
+<table>
+  <thead><tr><th>#</th><th>Student</th><th>Issued</th><th>Due</th><th>Status</th><th>Returned</th><th>Condition</th><th>Days late</th></tr></thead>
+  <tbody>
+  {% for a in allocations %}
+    <tr>
+      <td>{{ a.allocation_id }}</td><td>{{ a.student_name }} <small>{{ a.register_number }}</small></td>
+      <td>{{ a.allocation_date }}</td><td>{{ a.expected_return_date }}</td><td>{{ badge(a.allocation_status) }}</td>
+      <td>{{ a.return_date or '-' }}</td><td>{{ a.return_condition or '-' }}</td>
+      <td class="num">{{ a.days_late if a.days_late is not none else '-' }}</td>
+    </tr>
+  {% else %}<tr><td colspan="8" class="muted">Never allocated.</td></tr>{% endfor %}
+  </tbody>
+</table>
+
+<h2>Maintenance history</h2>
+<table>
+  <thead><tr><th>#</th><th>Date</th><th>Type</th><th>Status</th><th class="num">Cost</th><th>Staff</th><th>Remarks</th></tr></thead>
+  <tbody>
+  {% for m in jobs %}
+    <tr>
+      <td>{{ m.maintenance_id }}</td><td>{{ m.maintenance_date }}</td><td>{{ m.maintenance_type }}</td>
+      <td>{{ badge(m.maintenance_status) }}</td><td class="num">{{ m.maintenance_cost|money }}</td>
+      <td>{{ m.performed_by }}</td><td>{{ m.remarks or '' }}</td>
+    </tr>
+  {% else %}<tr><td colspan="7" class="muted">No maintenance recorded.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

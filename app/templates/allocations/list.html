@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge with context %}
+{% block title %}Allocations{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Allocations</h1>
+  <a class="btn btn-primary" href="{{ url_for('allocations.issue') }}">+ Issue equipment</a>
+</div>
+<nav class="tabs">
+  {% for key, label in [('issued', 'Issued'), ('overdue', 'Overdue'), ('returned', 'Returned'), ('all', 'All')] %}
+    <a href="{{ url_for('allocations.list_allocations', show=key) }}" class="{{ 'active' if show == key }}">{{ label }}</a>
+  {% endfor %}
+</nav>
+<p class="muted">{{ rows|length }} allocation(s).</p>
+<table>
+  <thead><tr><th>#</th><th>Student</th><th>Equipment</th><th>Issued by</th><th>Issued</th><th>Due</th><th>Status</th><th>Returned</th><th></th></tr></thead>
+  <tbody>
+  {% for a in rows %}
+    <tr>
+      <td>{{ a.allocation_id }}</td>
+      <td>{{ a.student_name }} <small>{{ a.register_number }}</small></td>
+      <td>{{ a.equipment_name }} <small>{{ a.serial_number }}</small></td>
+      <td>{{ a.issued_by }}</td><td>{{ a.allocation_date }}</td>
+      <td>{{ a.expected_return_date }}{% if a.days_overdue %} <span class="warn-text">({{ a.days_overdue }} d overdue)</span>{% endif %}</td>
+      <td>{{ badge(a.allocation_status) }}</td>
+      <td>{% if a.return_date %}{{ a.return_date }} · {{ a.return_condition }}{% else %}-{% endif %}</td>
+      <td>{% if a.allocation_status == 'Issued' %}<a class="btn btn-small" href="{{ url_for('allocations.return_equipment', allocation_id=a.allocation_id) }}">Return</a>{% endif %}</td>
+    </tr>
+  {% else %}<tr><td colspan="9" class="muted">No allocations in this list.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

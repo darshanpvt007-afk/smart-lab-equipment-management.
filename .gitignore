@@ -1,0 +1,11 @@
+# Local configuration (contains the database password)
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Test / screenshot scratch output
+tests/output/

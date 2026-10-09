@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge, csrf with context %}
+{% block title %}Maintenance{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Maintenance</h1>
+  <a class="btn btn-primary" href="{{ url_for('maintenance.schedule') }}">+ Schedule maintenance</a>
+</div>
+<nav class="tabs">
+  <a href="{{ url_for('maintenance.list_jobs') }}" class="{{ 'active' if not status }}">All</a>
+  {% for s in statuses %}
+    <a href="{{ url_for('maintenance.list_jobs', status=s) }}" class="{{ 'active' if status == s }}">{{ s }}</a>
+  {% endfor %}
+</nav>
+<table>
+  <thead><tr><th>#</th><th>Date</th><th>Equipment</th><th>Lab</th><th>Type</th><th>Status</th><th class="num">Cost</th><th>Staff</th><th></th></tr></thead>
+  <tbody>
+  {% for m in rows %}
+    <tr>
+      <td>{{ m.maintenance_id }}</td><td>{{ m.maintenance_date }}</td>
+      <td><a href="{{ url_for('equipment.detail', equipment_id=m.equipment_id) }}">{{ m.serial_number }}</a> <small>{{ m.equipment_name }}</small></td>
+      <td>{{ m.lab_name }}</td><td>{{ m.maintenance_type }}</td><td>{{ badge(m.maintenance_status) }}</td>
+      <td class="num">{{ m.maintenance_cost|money }}</td><td>{{ m.performed_by }}</td>
+      <td>
+        {% if m.maintenance_status == 'Scheduled' %}
+          <form method="post" action="{{ url_for('maintenance.start', maintenance_id=m.maintenance_id) }}" class="inline">
+            {{ csrf() }}<button class="btn btn-small" type="submit">Start</button>
+          </form>
+        {% elif m.maintenance_status == 'In Progress' %}
+          <a class="btn btn-small" href="{{ url_for('maintenance.complete', maintenance_id=m.maintenance_id) }}">Complete</a>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}<tr><td colspan="9" class="muted">No maintenance records.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

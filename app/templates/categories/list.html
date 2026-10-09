@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "macros.html" import delete_button with context %}
+{% block title %}Categories{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Equipment categories</h1>
+  <a class="btn btn-primary" href="{{ url_for('categories.create') }}">+ Add category</a>
+</div>
+<table>
+  <thead><tr><th>Name</th><th>Description</th><th class="num">Equipment</th><th></th></tr></thead>
+  <tbody>
+  {% for c in rows %}
+    <tr>
+      <td><a href="{{ url_for('equipment.list_equipment', category_id=c.category_id) }}">{{ c.category_name }}</a></td>
+      <td>{{ c.description or '' }}</td><td class="num">{{ c.equipment_count }}</td>
+      <td class="row-actions">
+        <a class="btn btn-small" href="{{ url_for('categories.edit', category_id=c.category_id) }}">Edit</a>
+        {{ delete_button(url_for('categories.delete', category_id=c.category_id), c.category_name) }}
+      </td>
+    </tr>
+  {% else %}<tr><td colspan="4" class="muted">No categories recorded.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

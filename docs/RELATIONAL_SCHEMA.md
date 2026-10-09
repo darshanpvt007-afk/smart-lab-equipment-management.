@@ -266,12 +266,14 @@ InnoDB automatically indexes every foreign key column, which speeds up the joins
 | `vw_maintenance_history` | maintenance, equipment, lab, lab_staff | maintenance record |
 | `vw_allocation_history` | equipment_allocation, student, equipment, lab_staff, LEFT JOIN equipment_return | allocation |
 
-## Stored procedures (sql/11_transaction_procedures.sql)
+## Stored procedures (sql/11_transaction_procedures.sql, sql/12_maintenance_procedures.sql)
 
 | Procedure | Tables changed atomically |
 |---|---|
 | `sp_allocate_equipment(equipment, student, staff, date, expected_return, OUT id)` | `equipment_allocation` (INSERT), `equipment` (UPDATE availability) |
 | `sp_return_equipment(allocation, date, condition, remarks)` | `equipment_return` (INSERT), `equipment_allocation` (UPDATE status), `equipment` (UPDATE condition and availability) |
+| `sp_start_maintenance(maintenance, start_date)` (file 12) | `maintenance` (UPDATE status and date), `equipment` (UPDATE availability) |
+| `sp_complete_maintenance(maintenance, cost, condition_after, remarks)` (file 12) | `maintenance` (UPDATE status, cost, remarks), `equipment` (UPDATE condition and availability) |
 
 ## How to inspect the schema in MySQL
 

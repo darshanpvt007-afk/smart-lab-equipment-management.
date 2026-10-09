@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, select, textarea, csrf with context %}
+{% block title %}Schedule maintenance{% endblock %}
+{% block content %}
+<h1>Schedule maintenance</h1>
+<form method="post" class="card">
+  {{ csrf() }}
+  {{ select('equipment_id', 'Equipment', equipment, item, errors) }}
+  {{ select('staff_id', 'Assigned to', staff, item, errors) }}
+  {{ field('maintenance_date', 'Planned date', item, errors, type='date', attrs='min=' ~ today.isoformat()) }}
+  {{ select('maintenance_type', 'Type', types, item, errors) }}
+  {{ textarea('remarks', 'Remarks', item, errors) }}
+  <p class="muted">A scheduled job does not change availability. Press <em>Start</em> on the
+     maintenance list when work begins.</p>
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Schedule</button>
+    <a class="btn btn-link" href="{{ url_for('maintenance.list_jobs') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

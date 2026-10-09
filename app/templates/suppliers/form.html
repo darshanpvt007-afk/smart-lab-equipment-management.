@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, textarea, csrf with context %}
+{% block title %}{{ 'Add' if is_new else 'Edit' }} supplier{% endblock %}
+{% block content %}
+<h1>{{ 'Add supplier' if is_new else 'Edit supplier' }}</h1>
+<form method="post" class="card">
+  {{ csrf() }}
+  {{ field('supplier_name', 'Supplier name', item, errors, attrs='maxlength=120') }}
+  {{ field('contact_number', 'Contact number', item, errors, type='tel', attrs='maxlength=15', help='10-14 digits, optional leading +') }}
+  {{ field('email', 'E-mail', item, errors, type='email', required=false, attrs='maxlength=120') }}
+  {{ textarea('address', 'Address', item, errors) }}
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a class="btn btn-link" href="{{ url_for('suppliers.list_suppliers') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Students{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Students</h1>
+  <a class="btn btn-primary" href="{{ url_for('students.create') }}">+ Add student</a>
+</div>
+
+<form method="get" class="filters">
+  <input type="search" name="q" value="{{ filters.q }}" placeholder="Name or register number" aria-label="Search">
+  <select name="department" aria-label="Department">
+    <option value="">All departments</option>
+    {% for d in departments %}<option {{ 'selected' if d == filters.department }}>{{ d }}</option>{% endfor %}
+  </select>
+  <select name="year" aria-label="Year">
+    <option value="">Any year</option>
+    {% for y in range(1, 6) %}<option value="{{ y }}" {{ 'selected' if y|string == filters.year }}>Year {{ y }}</option>{% endfor %}
+  </select>
+  <button class="btn" type="submit">Search</button>
+  <a class="btn btn-link" href="{{ url_for('students.list_students') }}">Clear</a>
+</form>
+
+<p class="muted">{{ rows|length }} student(s) found.</p>
+<table>
+  <thead><tr><th>Register no.</th><th>Name</th><th>Dept</th><th>Year</th><th>E-mail</th><th class="num">Allocations</th><th class="num">Holding now</th></tr></thead>
+  <tbody>
+  {% for s in rows %}
+    <tr>
+      <td><a href="{{ url_for('students.detail', student_id=s.student_id) }}">{{ s.register_number }}</a></td>
+      <td>{{ s.student_name }}</td><td>{{ s.department }}</td><td>{{ s.year_of_study }}</td><td>{{ s.email }}</td>
+      <td class="num">{{ s.allocations }}</td><td class="num">{{ s.holding or 0 }}</td>
+    </tr>
+  {% else %}<tr><td colspan="7" class="muted">No students match the search.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

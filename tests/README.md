@@ -1,42 +1,43 @@
 # Tests
 
+The project has three automated test suites, 166 tests in all, each run by one command. Every suite builds its **own** database from the SQL scripts, so none of them reads or changes `smart_lab_equipment_db`.
+
+| Suite | IDs | Command | Database it builds | Needs |
+|---|---|---|---|---|
+| Database | TC01–TC71 | `bash tests/run_tests.sh` | `smart_lab_equipment_test` | bash, `mysql` client |
+| Web application | TA01–TA32 (85 tests) | `python -m pytest` | `smart_lab_equipment_apptest` (rebuilt before every test) | `pip install -r requirements.txt`, `mysql` client |
+| Browser walkthrough | TB01–TB10 | `python tests/browser_walkthrough.py` | `smart_lab_equipment_apptest` | `pip install playwright` and `python -m playwright install chromium` |
+
 | File | Content |
 |---|---|
-| `test_cases.md` | Definitions of the 63 test cases (TC01–TC63), with SQL you can run by hand |
-| `run_tests.sh` | Runs every test case automatically and prints PASS/FAIL |
-| `../docs/TEST_REPORT.md` | Results of the latest run |
+| `test_cases.md` | Every test case: objective, steps, expected result |
+| `run_tests.sh` | Database suite runner (prints PASS/FAIL per test) |
+| `web/` | pytest suite: `conftest.py` (fixtures), page/search, CRUD, workflow, reports/security/validator tests |
+| `browser_walkthrough.py` | Drives Chromium through 10 user journeys; saves screenshots to `docs/screenshots/` |
+| `../docs/TEST_REPORT.md` | Results of the latest runs |
 
-## Running the automated tests
+## Connecting to MySQL
 
-Requirements:
-- MySQL 8.0.16 or later, with the server running
-- a MySQL account that may create and drop a database named `smart_lab_equipment_test`
-- `bash` (Linux, macOS, WSL or Git Bash on Windows)
+- **Database suite.** It uses the plain `mysql` command. That command reads `~/.my.cnf`, or uses socket login for the current OS user. To use a saved login instead:
+  ```bash
+  mysql_config_editor set --login-path=smartlab --host=localhost --user=root --password
+  MYSQL_CMD="mysql --login-path=smartlab" bash tests/run_tests.sh
+  ```
+- **Application suite and browser walkthrough.** These read the same variables as the app: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, and optionally `DB_UNIX_SOCKET`. For example:
+  ```bash
+  DB_USER=labadmin DB_PASSWORD='...' python -m pytest
+  ```
+  The password is passed to the `mysql` client through a temporary option file, never on its command line.
 
-```bash
-# from the project root
-bash tests/run_tests.sh
+The MySQL account needs permission to create and drop the two test databases:
+
+```sql
+GRANT ALL PRIVILEGES ON smart_lab_equipment_test.*    TO 'labadmin'@'localhost';
+GRANT ALL PRIVILEGES ON smart_lab_equipment_apptest.* TO 'labadmin'@'localhost';
 ```
 
-By default the script uses the plain `mysql` command, which reads `~/.my.cnf` or uses the socket login of the current OS user. If your account needs a password, store it once in an encrypted login path rather than typing it on the command line:
+## Notes
 
-```bash
-mysql_config_editor set --login-path=smartlab --host=localhost --user=root --password
-MYSQL_CMD="mysql --login-path=smartlab" bash tests/run_tests.sh
-```
-
-To keep the test database for inspection afterwards:
-
-```bash
-KEEP_TEST_DB=1 bash tests/run_tests.sh
-```
-
-## What the runner does
-
-1. Makes copies of the SQL files with `smart_lab_equipment_db` replaced by `smart_lab_equipment_test`. **Your development database is never read or changed.**
-2. Drops and rebuilds `smart_lab_equipment_test` from scripts 01, 02, 03, 08 and 11.
-3. Runs the schema, constraint, query-result, validation, transaction, concurrency and history tests.
-4. Runs the reset script against the test database, rebuilds it, and validates it again.
-5. Drops the test database (unless `KEEP_TEST_DB=1`) and prints `Passed / Failed / Total`. The exit status is 0 only if every test passed.
-
-The concurrency tests (TC53, TC54) open parallel `mysql` sessions and use `SLEEP(2)`, so a full run takes about 5–10 seconds.
+- **Run times.** The database suite takes about 6 seconds, the application suite about 45 seconds (it rebuilds the database 85 times), and the browser walkthrough about 10 seconds.
+- **Keeping the test database.** Set `KEEP_TEST_DB=1` to keep `smart_lab_equipment_test` after the database suite.
+- **Browser path.** The walkthrough uses Playwright's own Chromium. `CHROMIUM_PATH=/path/to/chrome` points it at another browser.

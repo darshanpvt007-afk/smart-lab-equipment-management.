@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge with context %}
+{% block title %}Equipment{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Equipment</h1>
+  <a class="btn btn-primary" href="{{ url_for('equipment.create') }}">+ Add equipment</a>
+</div>
+
+<form method="get" class="filters">
+  <input type="search" name="q" value="{{ filters.q }}" placeholder="Name or serial number" aria-label="Search">
+  <select name="lab_id" aria-label="Laboratory">
+    <option value="">All labs</option>
+    {% for l in labs %}<option value="{{ l.id }}" {{ 'selected' if l.id|string == filters.lab_id }}>{{ l.name }}</option>{% endfor %}
+  </select>
+  <select name="category_id" aria-label="Category">
+    <option value="">All categories</option>
+    {% for c in categories %}<option value="{{ c.id }}" {{ 'selected' if c.id|string == filters.category_id }}>{{ c.name }}</option>{% endfor %}
+  </select>
+  <select name="status" aria-label="Availability">
+    <option value="">Any status</option>
+    {% for s in statuses %}<option {{ 'selected' if s == filters.status }}>{{ s }}</option>{% endfor %}
+  </select>
+  <button class="btn" type="submit">Search</button>
+  <a class="btn btn-link" href="{{ url_for('equipment.list_equipment') }}">Clear</a>
+</form>
+
+<p class="muted">{{ rows|length }} item(s) found.</p>
+<table>
+  <thead><tr><th>Serial</th><th>Name</th><th>Category</th><th>Lab</th><th>Condition</th><th>Availability</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td><a href="{{ url_for('equipment.detail', equipment_id=r.equipment_id) }}">{{ r.serial_number }}</a></td>
+      <td>{{ r.equipment_name }}</td><td>{{ r.category_name }}</td><td>{{ r.lab_name }}</td>
+      <td>{{ r.equipment_condition }}</td><td>{{ badge(r.availability_status) }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="muted">No equipment matches the search.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

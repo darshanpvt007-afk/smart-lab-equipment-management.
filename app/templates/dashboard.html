@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+
+<section class="tiles">
+  <a class="tile" href="{{ url_for('equipment.list_equipment') }}"><span class="n">{{ totals.equipment }}</span><span>Equipment items</span></a>
+  <a class="tile ok" href="{{ url_for('equipment.list_equipment', status='Available') }}"><span class="n">{{ counts.get('Available', 0) }}</span><span>Available</span></a>
+  <a class="tile info" href="{{ url_for('allocations.list_allocations', show='issued') }}"><span class="n">{{ totals.outstanding }}</span><span>Issued to students</span></a>
+  <a class="tile warn" href="{{ url_for('allocations.list_allocations', show='overdue') }}"><span class="n">{{ totals.overdue }}</span><span>Overdue</span></a>
+  <a class="tile" href="{{ url_for('equipment.list_equipment', status='Under Maintenance') }}"><span class="n">{{ counts.get('Under Maintenance', 0) }}</span><span>Under maintenance</span></a>
+  <a class="tile" href="{{ url_for('equipment.list_equipment', status='Unavailable') }}"><span class="n">{{ counts.get('Unavailable', 0) }}</span><span>Unavailable</span></a>
+</section>
+
+<div class="actions">
+  <a class="btn btn-primary" href="{{ url_for('allocations.issue') }}">Issue equipment</a>
+  <a class="btn" href="{{ url_for('allocations.list_allocations', show='issued') }}">Record a return</a>
+  <a class="btn" href="{{ url_for('maintenance.schedule') }}">Schedule maintenance</a>
+  <a class="btn" href="{{ url_for('equipment.create') }}">Add equipment</a>
+</div>
+
+<h2>Overdue allocations</h2>
+{% if overdue %}
+<table>
+  <thead><tr><th>#</th><th>Student</th><th>Equipment</th><th>Due</th><th class="num">Days overdue</th><th></th></tr></thead>
+  <tbody>
+  {% for r in overdue %}
+    <tr>
+      <td>{{ r.allocation_id }}</td>
+      <td>{{ r.student_name }} <small>{{ r.register_number }}</small></td>
+      <td>{{ r.equipment_name }} <small>{{ r.serial_number }}</small></td>
+      <td>{{ r.expected_return_date }}</td>
+      <td class="num warn-text">{{ r.days_overdue }}</td>
+      <td><a class="btn btn-small" href="{{ url_for('allocations.return_equipment', allocation_id=r.allocation_id) }}">Return</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p class="muted">No overdue allocations.</p>{% endif %}
+
+<h2>Open maintenance jobs</h2>
+{% if open_jobs %}
+<table>
+  <thead><tr><th>#</th><th>Date</th><th>Equipment</th><th>Type</th><th>Status</th><th>Staff</th></tr></thead>
+  <tbody>
+  {% for j in open_jobs %}
+    <tr>
+      <td>{{ j.maintenance_id }}</td><td>{{ j.maintenance_date }}</td>
+      <td>{{ j.equipment_name }} <small>{{ j.serial_number }}</small></td>
+      <td>{{ j.maintenance_type }}</td><td>{{ badge(j.maintenance_status) }}</td><td>{{ j.performed_by }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p class="muted">No open maintenance jobs.</p>{% endif %}
+{% endblock %}

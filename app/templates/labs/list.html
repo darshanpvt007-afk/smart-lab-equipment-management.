@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "macros.html" import delete_button with context %}
+{% block title %}Laboratories{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Laboratories</h1>
+  <a class="btn btn-primary" href="{{ url_for('labs.create') }}">+ Add laboratory</a>
+</div>
+<table>
+  <thead><tr><th>Name</th><th>Location</th><th>Type</th><th class="num">Capacity</th><th class="num">Equipment</th><th class="num">Available</th><th></th></tr></thead>
+  <tbody>
+  {% for l in rows %}
+    <tr>
+      <td><a href="{{ url_for('equipment.list_equipment', lab_id=l.lab_id) }}">{{ l.lab_name }}</a></td>
+      <td>{{ l.location }}</td><td>{{ l.lab_type }}</td><td class="num">{{ l.capacity }}</td>
+      <td class="num">{{ l.equipment_count }}</td><td class="num">{{ l.available or 0 }}</td>
+      <td class="row-actions">
+        <a class="btn btn-small" href="{{ url_for('labs.edit', lab_id=l.lab_id) }}">Edit</a>
+        {{ delete_button(url_for('labs.delete', lab_id=l.lab_id), l.lab_name) }}
+      </td>
+    </tr>
+  {% else %}<tr><td colspan="7" class="muted">No laboratories recorded.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

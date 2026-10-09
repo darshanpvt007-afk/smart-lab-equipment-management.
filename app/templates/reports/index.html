@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<h1>Reports</h1>
+<p class="muted">Each report runs one of the project's SQL queries and shows the SQL next to the result.</p>
+<ul class="report-list">
+  {% for r in reports %}
+    <li><a href="{{ url_for('reports.show', slug=r.slug) }}">{{ r.title }}</a> <small>{{ r.concept }}</small></li>
+  {% endfor %}
+</ul>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, select, csrf with context %}
+{% block title %}{{ 'Record' if is_new else 'Edit' }} purchase{% endblock %}
+{% block content %}
+<h1>{{ 'Record purchase' if is_new else 'Edit purchase' }}</h1>
+<form method="post" class="card">
+  {{ csrf() }}
+  {{ select('supplier_id', 'Supplier', suppliers, item, errors) }}
+  {{ field('purchase_date', 'Purchase date', item, errors, type='date', attrs='max=' ~ today.isoformat()) }}
+  {{ field('invoice_number', 'Invoice number', item, errors, attrs='maxlength=30', help='Unique per supplier') }}
+  {{ field('total_amount', 'Total amount (INR)', item, errors, type='number', attrs='min=0.01 step=0.01') }}
+  {{ select('purchase_status', 'Status', statuses, item, errors) }}
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a class="btn btn-link" href="{{ url_for('purchases.list_purchases') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

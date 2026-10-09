@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, csrf with context %}
+{% block title %}{{ 'Add' if is_new else 'Edit' }} staff member{% endblock %}
+{% block content %}
+<h1>{{ 'Add staff member' if is_new else 'Edit staff member' }}</h1>
+<form method="post" class="card">
+  {{ csrf() }}
+  {{ field('staff_name', 'Name', item, errors, attrs='maxlength=100') }}
+  {{ field('designation', 'Designation', item, errors, attrs='maxlength=60') }}
+  {{ field('department', 'Department', item, errors, attrs='maxlength=60') }}
+  {{ field('contact_number', 'Contact number', item, errors, type='tel', attrs='maxlength=15', help='10-14 digits, optional leading +') }}
+  {{ field('email', 'E-mail', item, errors, type='email', attrs='maxlength=120') }}
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a class="btn btn-link" href="{{ url_for('staff.list_staff') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

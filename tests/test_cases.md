@@ -1,6 +1,12 @@
 # Test Cases
 
-These are the test definitions. Each case is automated in `tests/run_tests.sh` with the same ID, and the results of the latest run are in `docs/TEST_REPORT.md`.
+These are the test definitions, 166 in all, and every case is automated under the same ID. Results of the latest run are in `docs/TEST_REPORT.md`.
+
+| IDs | Suite | Run with |
+|---|---|---|
+| TC01–TC71 | Database tests (A–H Review 2; I Review 3) | `bash tests/run_tests.sh` |
+| TA01–TA32 (85 test functions with parameters) | Web application tests (J) | `python -m pytest` |
+| TB01–TB10 | Browser walkthrough (K) | `python tests/browser_walkthrough.py` |
 
 The automated runner works on a separate database, `smart_lab_equipment_test`, rebuilt from the scripts. To try a case by hand, run its SQL in the `mysql` client against `smart_lab_equipment_db`:
 - Cases marked **(rolls back)** or **(rejected)** leave the data unchanged.
@@ -119,3 +125,78 @@ Error codes used below:
 | TC61 | Reset drops the database | Run `10_reset_database.sql` (the runner uses a copy that targets the **test** database only) | Database no longer listed |
 | TC62 | Rebuild from scratch | Run 01, 02, 03, 08, 11 again | No errors or warnings |
 | TC63 | Rebuilt data valid | Run `09_validation_queries.sql` | Same output as TC38 |
+
+---
+
+# Review 3 test cases
+
+## I. Maintenance workflow procedures (database, `tests/run_tests.sh`)
+
+These run on the rebuilt test database after TC63.
+
+| ID | Objective | SQL | Expected |
+|---|---|---|---|
+| TC64 | Start a scheduled job | `CALL sp_start_maintenance(10,'2026-10-10');` | Job 10 `In Progress` dated 2026-10-10; equipment 9 `Under Maintenance` |
+| TC65 | Start it again | same call | ERROR 1644 (not Scheduled) |
+| TC66 | Work on an issued item | Schedule job 901 for equipment 1 (Allocated), then start it | ERROR 1644 "…currently allocated to a student…" |
+| TC67 | Complete a job | `CALL sp_complete_maintenance(10,900.00,'Good','USB connector replaced');` | `Completed`, 900.00; equipment 9 `Good`, `Available` |
+| TC68 | Missing cost | `CALL sp_complete_maintenance(8,NULL,'Good',NULL);` | ERROR 1644 |
+| TC69 | …nothing changed | Job 8 and equipment 3 | `In Progress`, `Under Maintenance` |
+| TC70 | Two jobs on one item | Start job 902 on equipment 3, then complete job 8 | Equipment 3 stays `Under Maintenance` |
+| TC71 | Consistency | Run `09_validation_queries.sql` | Same output as TC38 |
+
+## J. Web application (`python -m pytest`, folder `tests/web`)
+
+Before every test, the database `smart_lab_equipment_apptest` is rebuilt from scripts 01, 02, 03, 08, 11 and 12. The app runs with reference date 2026-10-10.
+
+| ID | Objective | Steps | Expected |
+|---|---|---|---|
+| TA01 | Every page loads | GET 35 URLs (lists, forms, details, filters) | HTTP 200 each |
+| TA02 | Unknown records | GET `/equipment/999`, `/students/999`, unknown report | HTTP 404 |
+| TA03 | Dashboard figures | GET `/` | 20 items, 11 available, 6 issued, 3 overdue, 2 under maintenance, 1 unavailable |
+| TA04 | Equipment search | Text "oscilloscope", "NET-"; status, lab, category filters | 3, 4, 11, 6 items; multimeters available = 3 serials |
+| TA05 | Student search | Name, department, department + year | Matching register numbers only |
+| TA06 | SQL injection | Search for `' OR 1=1 --` and a `DROP TABLE` string | 0 rows; student table intact |
+| TA07 | Create student | Valid form | Saved (register no. and dept upper-cased); success message |
+| TA08 | Validation | Empty name, bad register no., year 9, bad e-mail | HTTP 400, one message per field, nothing saved |
+| TA09 | Duplicate register no. | Existing `24BCE1012` | "A student with this register number already exists." |
+| TA10 | Update student | Edit year and e-mail | Saved |
+| TA11 | Delete student | Student 10 (no history), student 1 (history) | First deleted; second blocked with a message |
+| TA12 | Create and edit equipment | New item, then change lab | Item `Available`/`New`; lab updated |
+| TA13 | Equipment errors | Duplicate serial; missing lab; condition Damaged | Friendly duplicate message; field errors; nothing saved |
+| TA14 | Delete equipment with history | Equipment 1 | Blocked, still present |
+| TA15 | Lab CRUD | Add, edit, capacity 0, delete new lab, delete lab 1 | Saved / error / deleted / blocked |
+| TA16 | Category CRUD | Add with empty description, duplicate, delete | NULL description, duplicate message, deleted |
+| TA17 | Supplier CRUD | Bad phone and e-mail; valid add; delete; delete supplier 1 | Field errors; saved; deleted; blocked |
+| TA18 | Staff CRUD | Add, edit, duplicate e-mail, delete | Saved; updated; duplicate message; deleted |
+| TA19 | Purchase rules | Valid add; amount 0 + future date; cancel purchase 1 | Saved; field errors; refused (purchase has 4 items) |
+| TA20 | Issue | Equipment 15 to student 10 | Allocation #21 `Issued`; equipment `Allocated` |
+| TA21 | Issue refused | Equipment 1, 3, 9 | Procedure message naming the status; no new rows |
+| TA22 | Issue validation | Due before issue; future issue date; no student | Field errors; no new rows |
+| TA23 | Return | Allocation 17, Good; then again | Returned, equipment `Available`; second attempt refused |
+| TA24 | Return rules | Return before issue date; return Damaged | Field error; equipment 10 `Unavailable`/`Damaged` |
+| TA25 | Maintenance flow | Schedule → start → negative cost → complete | `Scheduled` (still Available) → `In Progress`/`Under Maintenance` → error → `Completed`/`Available` |
+| TA26 | Maintenance refusals | Start on an issued item; past date; restart a completed job | Messages; nothing changed |
+| TA27 | Consistency | Several issues, returns, repairs via the UI | V06/V07/V08/V10/V11/V12 checks empty |
+| TA28 | Reports run | All 8 reports | HTTP 200 and the SQL shown |
+| TA29 | Report answers | Overdue, supplier spend, never maintained, frequent borrowers | Same results as Review 2 queries |
+| TA30 | CSRF | POST without token | HTTP 400; nothing saved |
+| TA31 | HTML escaping | Category named `<script>…` | Rendered escaped |
+| TA32 | Validator unit tests | `Form` helpers with good and bad input | Correct values and messages |
+
+## K. Browser walkthrough (`python tests/browser_walkthrough.py`)
+
+The walkthrough uses a real Chromium browser against a freshly built test database, and saves a screenshot per step to `docs/screenshots/`.
+
+| ID | Journey | Checked on screen |
+|---|---|---|
+| TB01 | Open the dashboard | Title, 3 overdue, overdue student listed |
+| TB02 | Search "multimeter", Available | "2 item(s) found." |
+| TB03 | Equipment OSC-DS1-0001 | Maintenance remark in history |
+| TB04 | Issue with due date before issue date | Field error message |
+| TB05 | Correct the date and issue | "Equipment issued (allocation #21)." |
+| TB06 | Return allocation 17 | "Return of OSC-DS1-0001 recorded." |
+| TB07 | Add student with existing register no. | Duplicate message |
+| TB08 | Start scheduled job for MCU-ARD-0009 | "now Under Maintenance" |
+| TB09 | Frequent-borrowers report | SQL with HAVING; 4 rows |
+| TB10 | Student 24BCE1012 | 4 history rows |

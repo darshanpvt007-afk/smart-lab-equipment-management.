@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, textarea, csrf with context %}
+{% block title %}{{ 'Add' if is_new else 'Edit' }} category{% endblock %}
+{% block content %}
+<h1>{{ 'Add category' if is_new else 'Edit category' }}</h1>
+<form method="post" class="card">
+  {{ csrf() }}
+  {{ field('category_name', 'Category name', item, errors, attrs='maxlength=80') }}
+  {{ textarea('description', 'Description', item, errors) }}
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a class="btn btn-link" href="{{ url_for('categories.list_categories') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

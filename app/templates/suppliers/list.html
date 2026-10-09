@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "macros.html" import delete_button with context %}
+{% block title %}Suppliers{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Suppliers</h1>
+  <a class="btn btn-primary" href="{{ url_for('suppliers.create') }}">+ Add supplier</a>
+</div>
+<table>
+  <thead><tr><th>Name</th><th>Contact</th><th>E-mail</th><th>Address</th><th class="num">Purchases</th><th class="num">Received total (INR)</th><th></th></tr></thead>
+  <tbody>
+  {% for s in rows %}
+    <tr>
+      <td>{{ s.supplier_name }}</td><td>{{ s.contact_number }}</td><td>{{ s.email or '' }}</td>
+      <td>{{ s.address or '' }}</td><td class="num">{{ s.purchases }}</td><td class="num">{{ s.received_total|money }}</td>
+      <td class="row-actions">
+        <a class="btn btn-small" href="{{ url_for('suppliers.edit', supplier_id=s.supplier_id) }}">Edit</a>
+        {{ delete_button(url_for('suppliers.delete', supplier_id=s.supplier_id), s.supplier_name) }}
+      </td>
+    </tr>
+  {% else %}<tr><td colspan="7" class="muted">No suppliers recorded.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ report.title }}{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('reports.index') }}">&larr; All reports</a></p>
+<h1>{{ report.title }}</h1>
+<p class="muted">SQL concept: {{ report.concept }}{% if report.params %} · <code>%s</code> = {{ today.isoformat() }}{% endif %}</p>
+<pre class="sql">{{ report.sql }}</pre>
+<p class="muted">{{ rows|length }} row(s).</p>
+<table>
+  <thead><tr>{% for c in columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for row in rows %}
+    <tr>{% for c in columns %}<td>{{ '-' if row[c] is none else row[c] }}</td>{% endfor %}</tr>
+  {% else %}<tr><td class="muted">No rows.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

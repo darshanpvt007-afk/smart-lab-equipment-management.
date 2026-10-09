@@ -1,0 +1,54 @@
+{# Reusable form pieces. `item` is a dict (database row) or the submitted form. #}
+
+{% macro value_of(item, name) -%}
+  {%- set v = item.get(name) if item else none -%}
+  {{- '' if v is none else v -}}
+{%- endmacro %}
+
+{% macro field(name, label, item, errors, type='text', required=true, attrs='', help='') %}
+  <div class="field {{ 'has-error' if errors.get(name) }}">
+    <label for="{{ name }}">{{ label }}{% if required %} <span class="req">*</span>{% endif %}</label>
+    <input id="{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ value_of(item, name) }}"
+           {{ 'required' if required }} {{ attrs|safe }}>
+    {% if help %}<small class="help">{{ help }}</small>{% endif %}
+    {% if errors.get(name) %}<small class="error">{{ errors[name] }}</small>{% endif %}
+  </div>
+{% endmacro %}
+
+{% macro textarea(name, label, item, errors, maxlength=255) %}
+  <div class="field {{ 'has-error' if errors.get(name) }}">
+    <label for="{{ name }}">{{ label }}</label>
+    <textarea id="{{ name }}" name="{{ name }}" maxlength="{{ maxlength }}" rows="2">{{ value_of(item, name) }}</textarea>
+    {% if errors.get(name) %}<small class="error">{{ errors[name] }}</small>{% endif %}
+  </div>
+{% endmacro %}
+
+{# options: list of {id, name} dicts, or plain strings #}
+{% macro select(name, label, options, item, errors, required=true, blank='-- choose --') %}
+  {% set current = value_of(item, name) %}
+  <div class="field {{ 'has-error' if errors.get(name) }}">
+    <label for="{{ name }}">{{ label }}{% if required %} <span class="req">*</span>{% endif %}</label>
+    <select id="{{ name }}" name="{{ name }}" {{ 'required' if required }}>
+      <option value="">{{ blank }}</option>
+      {% for opt in options %}
+        {% set oid = opt.id if opt is mapping else opt %}
+        {% set oname = opt.name if opt is mapping else opt %}
+        <option value="{{ oid }}" {{ 'selected' if oid|string == current|string }}>{{ oname }}</option>
+      {% endfor %}
+    </select>
+    {% if errors.get(name) %}<small class="error">{{ errors[name] }}</small>{% endif %}
+  </div>
+{% endmacro %}
+
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+
+{% macro delete_button(action, what) %}
+  <form method="post" action="{{ action }}" class="inline"
+        onsubmit="return confirm('Delete {{ what }}? This cannot be undone.');">
+    {{ csrf() }}<button type="submit" class="btn btn-danger btn-small">Delete</button>
+  </form>
+{% endmacro %}
+
+{% macro badge(status) %}
+  <span class="badge badge-{{ status|lower|replace(' ', '-') }}">{{ status }}</span>
+{% endmacro %}
