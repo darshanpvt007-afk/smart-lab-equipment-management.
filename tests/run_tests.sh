@@ -95,9 +95,9 @@ echo "---------------------------------------------------------------------"
 $MYSQL_CMD -e "DROP DATABASE IF EXISTS ${TEST_DB}"
 
 # ---------- 1. build & schema ----------------------------------------
-run_scripts TC01 "Clean build: 01, 02, 03, 08, 11 run without errors or warnings" \
+run_scripts TC01 "Clean build: 01, 02, 03, 08, 11, 12 run without errors or warnings" \
     01_create_database.sql 02_create_tables.sql 03_insert_sample_data.sql \
-    08_create_views.sql 11_transaction_procedures.sql
+    08_create_views.sql 11_transaction_procedures.sql 12_maintenance_procedures.sql
 
 expect_value TC02 "All 10 base tables exist" \
  "SELECT GROUP_CONCAT(TABLE_NAME ORDER BY TABLE_NAME) FROM information_schema.TABLES
@@ -418,8 +418,49 @@ fi
 
 run_scripts TC62 "Rebuild after reset succeeds (reproducible from a clean server)" \
     01_create_database.sql 02_create_tables.sql 03_insert_sample_data.sql \
-    08_create_views.sql 11_transaction_procedures.sql
+    08_create_views.sql 11_transaction_procedures.sql 12_maintenance_procedures.sql
 check_validation TC63 "Rebuilt database passes validation again"
+
+# ---------- 9. maintenance workflow (Review 3, file 12) --------------
+expect_value TC64 "sp_start_maintenance starts a Scheduled job and sets the item Under Maintenance" \
+ "CALL sp_start_maintenance(10,'2026-10-10');
+  SELECT CONCAT_WS(',',m.maintenance_status,m.maintenance_date,e.availability_status)
+  FROM maintenance m JOIN equipment e ON e.equipment_id=m.equipment_id WHERE m.maintenance_id=10" \
+ "In Progress,2026-10-10,Under Maintenance"
+
+expect_error TC65 "sp_start_maintenance refuses a job that is not Scheduled" \
+ "CALL sp_start_maintenance(10,'2026-10-10')" 1644
+
+expect_value TC66 "sp_start_maintenance refuses work on an item that is with a student" \
+ "INSERT INTO maintenance (maintenance_id, equipment_id, staff_id, maintenance_date, maintenance_type, maintenance_status)
+  VALUES (901,1,2,'2026-10-10','Calibration','Scheduled');
+  CALL sp_start_maintenance(901,'2026-10-10');" \
+ "ERROR 1644 (45000) at line 3: Start refused: the equipment is currently allocated to a student; record its return first"
+
+expect_value TC67 "sp_complete_maintenance records cost and makes the repaired item Available" \
+ "CALL sp_complete_maintenance(10,900.00,'Good','USB connector replaced');
+  SELECT CONCAT_WS(',',m.maintenance_status,m.maintenance_cost,e.equipment_condition,e.availability_status)
+  FROM maintenance m JOIN equipment e ON e.equipment_id=m.equipment_id WHERE m.maintenance_id=10" \
+ "Completed,900.00,Good,Available"
+
+expect_error TC68 "sp_complete_maintenance refuses a missing cost" \
+ "CALL sp_complete_maintenance(8,NULL,'Good',NULL)" 1644
+
+expect_value TC69 "...and job 8 is unchanged (still In Progress, item still Under Maintenance)" \
+ "SELECT CONCAT_WS(',',m.maintenance_status,e.availability_status)
+  FROM maintenance m JOIN equipment e ON e.equipment_id=m.equipment_id WHERE m.maintenance_id=8" \
+ "In Progress,Under Maintenance"
+
+expect_value TC70 "With two jobs In Progress on one item, completing one keeps it Under Maintenance" \
+ "INSERT INTO maintenance (maintenance_id, equipment_id, staff_id, maintenance_date, maintenance_type, maintenance_status)
+  VALUES (902,3,2,'2026-10-10','Calibration','Scheduled');
+  CALL sp_start_maintenance(902,'2026-10-10');
+  CALL sp_complete_maintenance(8,8500.00,'Good','Input stage replaced');
+  SELECT availability_status FROM equipment WHERE equipment_id=3" \
+ "Under Maintenance"
+
+q "DELETE FROM maintenance WHERE maintenance_id=901" >/dev/null
+check_validation TC71 "After the maintenance workflow, validation still finds no violations"
 
 # ---------- summary ---------------------------------------------------
 if [ "${KEEP_TEST_DB:-0}" != 1 ]; then

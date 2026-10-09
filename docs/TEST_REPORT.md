@@ -213,3 +213,149 @@ Passed: 63   Failed: 0   Total: 63
 - **Windows / macOS.** The SQL is platform-independent, but the shell commands in the README were executed only on Linux. The bash runner needs Git Bash or WSL on Windows.
 - **MySQL Workbench.** Not used here; it was not available in the sandbox. The `DELIMITER` handling of file 11 in Workbench is described from MySQL documentation, not from a test.
 - **Concurrency coverage.** The concurrency tests prove the rule for two simultaneous sessions on one item. They are not a load test.
+
+
+---
+
+# Review 3 test results
+
+| Item | Value |
+|---|---|
+| Date of run | 2026-10-09 (UTC) |
+| Environment | Same sandbox: MySQL 8.0.46, Python 3.13, Flask 3.1.3, mysql-connector-python 26.7.0, pytest 9.1.1, Playwright 1.63 with Chromium |
+| Database suite | `bash tests/run_tests.sh`: **71 passed, 0 failed** (TC01–TC63 unchanged + TC64–TC71 for the maintenance procedures) |
+| Application suite | `python -m pytest`: **85 passed, 0 failed** (TA01–TA32; TA01, TA28 and TA32 are parameterised), about 41 s |
+| Browser walkthrough | `python tests/browser_walkthrough.py`: **10 passed, 0 failed** (TB01–TB10) |
+| Not executed | None |
+
+## How the results were checked
+
+- **Mutation checks.** Each suite was run against deliberately broken code: the register-number pattern weakened to accept anything, and the CSRF check disabled. The matching tests (TA08, TA30) failed both times, and the code was then restored. A test suite that could never fail would prove nothing.
+- **Screenshots.** They were inspected by eye. This found and fixed a layout bug (table headers misaligned with their columns) and a wrapping navigation bar before the final run.
+- **Demo script.** The 12 steps of `FACULTY_DEMONSTRATION.md` Part B were run in order through the app on a fresh database. This found one wrong expectation: step 11 shows 6 rows, not 4, after the earlier steps add a student and an allocation. The guide was corrected.
+
+## Maintenance procedure tests (from the database run)
+
+```
+PASS  TC64  sp_start_maintenance starts a Scheduled job and sets the item Under Maintenance
+PASS  TC65  sp_start_maintenance refuses a job that is not Scheduled
+PASS  TC66  sp_start_maintenance refuses work on an item that is with a student
+PASS  TC67  sp_complete_maintenance records cost and makes the repaired item Available
+PASS  TC68  sp_complete_maintenance refuses a missing cost
+PASS  TC69  ...and job 8 is unchanged (still In Progress, item still Under Maintenance)
+PASS  TC70  With two jobs In Progress on one item, completing one keeps it Under Maintenance
+PASS  TC71  After the maintenance workflow, validation still finds no violations
+Passed: 71   Failed: 0   Total: 71
+```
+
+## Application tests (pytest, every test PASSED)
+
+```
+tests/web/test_crud.py::test_ta07_create_student
+tests/web/test_crud.py::test_ta08_student_validation_errors_are_shown_and_nothing_is_saved
+tests/web/test_crud.py::test_ta09_duplicate_register_number_gives_friendly_message
+tests/web/test_crud.py::test_ta10_update_student
+tests/web/test_crud.py::test_ta11_delete_student_without_history_succeeds_with_history_is_blocked
+tests/web/test_crud.py::test_ta12_create_and_edit_equipment
+tests/web/test_crud.py::test_ta13_duplicate_serial_and_missing_fields
+tests/web/test_crud.py::test_ta14_delete_equipment_with_history_is_blocked
+tests/web/test_crud.py::test_ta15_lab_crud
+tests/web/test_crud.py::test_ta16_category_crud
+tests/web/test_crud.py::test_ta17_supplier_validation_and_crud
+tests/web/test_crud.py::test_ta18_staff_crud
+tests/web/test_crud.py::test_ta19_purchase_rules
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/equipment/]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/equipment/1]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/equipment/new]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/equipment/1/edit]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/students/]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/students/1]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/students/new]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/students/1/edit]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/staff/]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/staff/new]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/staff/1/edit]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/labs/]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/labs/new]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/labs/1/edit]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/categories/]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/categories/new]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/categories/1/edit]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/suppliers/]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/suppliers/new]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/suppliers/1/edit]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/purchases/]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/purchases/new]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/purchases/1/edit]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/allocations/]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/allocations/?show=overdue]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/allocations/?show=returned]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/allocations/?show=all]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/allocations/new]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/allocations/17/return]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/maintenance/]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/maintenance/?status=Scheduled]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/maintenance/new]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/maintenance/8/complete]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/reports/]
+tests/web/test_pages_and_search.py::test_ta02_unknown_records_give_404
+tests/web/test_pages_and_search.py::test_ta03_dashboard_figures_match_sample_data
+tests/web/test_pages_and_search.py::test_ta04_equipment_search_and_filters
+tests/web/test_pages_and_search.py::test_ta05_student_search_and_filters
+tests/web/test_pages_and_search.py::test_ta06_search_text_cannot_inject_sql
+tests/web/test_reports_security_validators.py::test_ta28_every_report_runs_and_shows_its_sql[overdue]
+tests/web/test_reports_security_validators.py::test_ta28_every_report_runs_and_shows_its_sql[equipment-per-lab]
+tests/web/test_reports_security_validators.py::test_ta28_every_report_runs_and_shows_its_sql[supplier-spend]
+tests/web/test_reports_security_validators.py::test_ta28_every_report_runs_and_shows_its_sql[maintenance-cost]
+tests/web/test_reports_security_validators.py::test_ta28_every_report_runs_and_shows_its_sql[frequent-borrowers]
+tests/web/test_reports_security_validators.py::test_ta28_every_report_runs_and_shows_its_sql[never-maintained]
+tests/web/test_reports_security_validators.py::test_ta28_every_report_runs_and_shows_its_sql[late-returns]
+tests/web/test_reports_security_validators.py::test_ta28_every_report_runs_and_shows_its_sql[costly-maintenance]
+tests/web/test_reports_security_validators.py::test_ta29_report_results_match_review2_answers
+tests/web/test_reports_security_validators.py::test_ta30_post_without_csrf_token_is_rejected
+tests/web/test_reports_security_validators.py::test_ta31_user_text_is_html_escaped
+tests/web/test_reports_security_validators.py::TestTA32Validators::test_text_required_length_and_upper
+tests/web/test_reports_security_validators.py::TestTA32Validators::test_integer
+tests/web/test_reports_security_validators.py::TestTA32Validators::test_money_rejects[12.345-at most 2 decimal places]
+tests/web/test_reports_security_validators.py::TestTA32Validators::test_money_rejects[abc-must be a number]
+tests/web/test_reports_security_validators.py::TestTA32Validators::test_money_rejects[NaN-must be a number]
+tests/web/test_reports_security_validators.py::TestTA32Validators::test_money_rejects[-1-cannot be negative]
+tests/web/test_reports_security_validators.py::TestTA32Validators::test_money_accepts
+tests/web/test_reports_security_validators.py::TestTA32Validators::test_date
+tests/web/test_reports_security_validators.py::TestTA32Validators::test_phone[9000000101-True]
+tests/web/test_reports_security_validators.py::TestTA32Validators::test_phone[+919000000101-True]
+tests/web/test_reports_security_validators.py::TestTA32Validators::test_phone[12345-False]
+tests/web/test_reports_security_validators.py::TestTA32Validators::test_phone[90000-00101-False]
+tests/web/test_reports_security_validators.py::TestTA32Validators::test_choice
+tests/web/test_workflows.py::test_ta20_issue_available_equipment
+tests/web/test_workflows.py::test_ta21_issue_refused_for_unavailable_items
+tests/web/test_workflows.py::test_ta22_issue_form_validation
+tests/web/test_workflows.py::test_ta23_return_in_good_condition
+tests/web/test_workflows.py::test_ta24_return_validation_and_damaged_return
+tests/web/test_workflows.py::test_ta25_maintenance_schedule_start_complete
+tests/web/test_workflows.py::test_ta26_maintenance_refusals
+tests/web/test_workflows.py::test_ta27_database_stays_consistent_after_workflows
+```
+
+## Browser walkthrough
+
+```
+PASS  TB01  Dashboard shows inventory figures and overdue loans
+PASS  TB02  Equipment search by name and availability
+PASS  TB03  Equipment detail with allocation and maintenance history
+PASS  TB04  Issue form rejects a due date before the issue date
+PASS  TB05  Equipment issued through sp_allocate_equipment
+PASS  TB06  Return recorded through sp_return_equipment
+PASS  TB07  Duplicate register number shows a friendly error
+PASS  TB08  Maintenance job started; list shows all jobs
+PASS  TB09  Report page shows the SQL and its result
+PASS  TB10  Student detail with allocation history
+Passed: 10   Failed: 0   Total: 10
+```
+
+## Not tested in Review 3
+
+- Browsers other than Chromium.
+- Windows or macOS for the app.
+- More than one simultaneous web user, beyond the database-level concurrency tests TC53 and TC54.

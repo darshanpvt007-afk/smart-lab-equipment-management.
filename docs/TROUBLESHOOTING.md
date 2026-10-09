@@ -9,6 +9,7 @@
 | 3 | `03_insert_sample_data.sql` | 02 (tables must exist and be empty) |
 | 4 | `08_create_views.sql` | 02 |
 | 5 | `11_transaction_procedures.sql` | 02 |
+| 6 | `12_maintenance_procedures.sql` | 02 (added in Review 3; the web app needs it) |
 | any time after 3 | `04`–`07`, `09` | data loaded (08 is also needed for Q50–Q55) |
 | only deliberately | `10_reset_database.sql` | — (**destroys the database**) |
 
@@ -173,3 +174,19 @@ MySQL 8 requires every non-aggregated column in the SELECT list to appear in GRO
 
 - **Overdue counts.** These depend on the date. The scripts use `@ref_date = 2026-10-10`. If you replaced it with `CURDATE()`, different allocations may be overdue.
 - **Procedure tests.** If you ran the stored-procedure tests by hand on the development database, the data has changed. Reset and rebuild to return to the documented sample state.
+
+---
+
+## Web application (Review 3)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `ModuleNotFoundError: No module named 'flask'` (or `mysql`) | Libraries not installed in the active Python | Activate the virtual environment (`source .venv/bin/activate`, or `.venv\Scripts\activate` on Windows), then `pip install -r requirements.txt` |
+| Page shows "Error 500 … Check that the MySQL server is running" | The app cannot connect or log in | Start MySQL; check `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` in `.env`; test the same login with the `mysql` client |
+| `Access denied for user 'root'@'localhost'` in the terminal | On Ubuntu, `root` often uses socket login and has no password | Create the `labadmin` account (README section 5), or set `DB_UNIX_SOCKET=/var/run/mysqld/mysqld.sock` with `DB_USER=root` |
+| `OSError: [Errno 98] Address already in use` | Another program uses port 5000 (on macOS, often AirPlay Receiver) | Add `PORT=5001` to `.env` and open http://127.0.0.1:5001 |
+| "Error 400: The form has expired" | The session cookie changed: the app restarted without a fixed `SECRET_KEY`, or the page was open for a long time | Reload the page and submit again; set a fixed `SECRET_KEY` in `.env` |
+| `PROCEDURE smart_lab_equipment_db.sp_start_maintenance does not exist` | Script 12 not run | `mysql -u <user> -p < sql/12_maintenance_procedures.sql` |
+| Dashboard shows 0 or a different number of overdue loans | `APP_REFERENCE_DATE` is not set, so the real date is used | Add `APP_REFERENCE_DATE=2026-10-10` to `.env` for the demo |
+| Data differs from the screenshots | Earlier demo runs changed the data | Reset and rebuild (README section 9 and section 5) |
+| `python -m pytest` fails while building the database | The account cannot create `smart_lab_equipment_apptest`, or the `mysql` client is not on PATH | Grant the privilege (tests/README.md); install the MySQL client or set `MYSQL_CLI` to its full path |

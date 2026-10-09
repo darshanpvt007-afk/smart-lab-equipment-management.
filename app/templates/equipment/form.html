@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, select, csrf with context %}
+{% block title %}{{ 'Add' if is_new else 'Edit' }} equipment{% endblock %}
+{% block content %}
+<h1>{{ 'Add equipment' if is_new else 'Edit equipment' }}</h1>
+<form method="post" class="card">
+  {{ csrf() }}
+  {{ field('equipment_name', 'Equipment name', item, errors, attrs='maxlength=120') }}
+  {{ field('serial_number', 'Serial number', item, errors, attrs='maxlength=50', help='Must be unique, e.g. OSC-DS1-0003.') }}
+  {{ select('category_id', 'Category', categories, item, errors) }}
+  {{ select('lab_id', 'Laboratory', labs, item, errors) }}
+  {{ select('purchase_id', 'Purchase (received)', purchases, item, errors) }}
+  {% if is_new %}
+    {{ select('equipment_condition', 'Condition', conditions, item, errors) }}
+    <p class="muted">New equipment starts as <strong>Available</strong>.</p>
+  {% else %}
+    <p class="muted">Condition and availability change only through allocation, return and maintenance.</p>
+  {% endif %}
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a class="btn btn-link" href="{{ url_for('equipment.list_equipment') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

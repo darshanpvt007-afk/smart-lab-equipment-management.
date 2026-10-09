@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, select, textarea, csrf with context %}
+{% block title %}Complete maintenance{% endblock %}
+{% block content %}
+<h1>Complete maintenance #{{ job.maintenance_id }}</h1>
+<dl class="details">
+  <dt>Equipment</dt><dd>{{ job.equipment_name }} ({{ job.serial_number }})</dd>
+  <dt>Type</dt><dd>{{ job.maintenance_type }}</dd>
+  <dt>Started</dt><dd>{{ job.maintenance_date }} by {{ job.performed_by }}</dd>
+  <dt>Status</dt><dd>{{ job.maintenance_status }}</dd>
+</dl>
+<form method="post" class="card">
+  {{ csrf() }}
+  {{ field('maintenance_cost', 'Cost (INR)', item, errors, type='number', attrs='min=0 step=0.01') }}
+  {{ select('condition_after', 'Condition after maintenance', conditions, item, errors) }}
+  {{ textarea('remarks', 'Remarks (leave empty to keep the existing remarks)', item, errors) }}
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Complete</button>
+    <a class="btn btn-link" href="{{ url_for('maintenance.list_jobs') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

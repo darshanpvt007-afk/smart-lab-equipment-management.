@@ -1,0 +1,172 @@
+"""End-to-end browser walkthrough (TB01-TB10) that also saves screenshots
+for the report and the presentation.
+
+It rebuilds the separate database smart_lab_equipment_apptest from the SQL
+files, starts the web app on a local port against it, and drives a real
+Chromium browser through the main user journeys, checking what appears on
+the screen at each step.
+
+Run from the project root (Playwright and Chromium must be installed:
+    pip install playwright && python -m playwright install chromium):
+    python tests/browser_walkthrough.py
+Screenshots are written to docs/screenshots/.
+"""
+import os
+import subprocess
+import sys
+import tempfile
+import threading
+from pathlib import Path
+
+from playwright.sync_api import expect, sync_playwright
+from werkzeug.serving import make_server
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from app import create_app  # noqa: E402
+
+TEST_DB = "smart_lab_equipment_apptest"
+SHOTS = ROOT / "docs" / "screenshots"
+BUILD = ["01_create_database.sql", "02_create_tables.sql", "03_insert_sample_data.sql",
+         "08_create_views.sql", "11_transaction_procedures.sql", "12_maintenance_procedures.sql"]
+PORT = int(os.environ.get("WALKTHROUGH_PORT", "5055"))
+BASE = f"http://127.0.0.1:{PORT}"
+
+settings = {
+    "host": os.environ.get("DB_HOST", "localhost"), "port": int(os.environ.get("DB_PORT", "3306")),
+    "user": os.environ.get("DB_USER", "root"), "password": os.environ.get("DB_PASSWORD", ""),
+    "unix_socket": os.environ.get("DB_UNIX_SOCKET", ""),
+}
+
+
+def build_database():
+    script = f"DROP DATABASE IF EXISTS {TEST_DB};\n" + "\n".join(
+        (ROOT / "sql" / f).read_text(encoding="utf-8").replace("smart_lab_equipment_db", TEST_DB) for f in BUILD)
+    with tempfile.NamedTemporaryFile("w", suffix=".cnf", delete=False) as cnf:
+        cnf.write(f"[client]\nuser={settings['user']}\npassword={settings['password']}\n")
+    args = ["mysql", f"--defaults-extra-file={cnf.name}"]
+    args += [f"--socket={settings['unix_socket']}"] if settings["unix_socket"] else \
+            [f"--host={settings['host']}", f"--port={settings['port']}"]
+    try:
+        subprocess.run(args, input=script, text=True, check=True, capture_output=True)
+    finally:
+        os.unlink(cnf.name)
+
+
+def start_server():
+    app = create_app({"SECRET_KEY": "walkthrough", "DB_NAME": TEST_DB, "REFERENCE_DATE": "2026-10-10",
+                      "DB_HOST": settings["host"], "DB_PORT": settings["port"], "DB_USER": settings["user"],
+                      "DB_PASSWORD": settings["password"], "DB_UNIX_SOCKET": settings["unix_socket"]})
+    server = make_server("127.0.0.1", PORT, app)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+def main():
+    SHOTS.mkdir(parents=True, exist_ok=True)
+    build_database()
+    server = start_server()
+    results = []
+
+    def step(test_id, title, shot, action):
+        try:
+            action()
+            page.screenshot(path=str(SHOTS / shot), full_page=True)
+            results.append((test_id, title, "PASS", ""))
+        except Exception as exc:                      # report and continue
+            results.append((test_id, title, "FAIL", str(exc).splitlines()[0]))
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None)
+        page = browser.new_page(viewport={"width": 1366, "height": 800})
+
+        def dashboard():
+            page.goto(BASE + "/")
+            expect(page.locator("h1")).to_have_text("Dashboard")
+            expect(page.locator(".tile.warn .n")).to_have_text("3")          # 3 overdue
+            expect(page.locator("text=Vikram Joshi")).to_be_visible()
+        step("TB01", "Dashboard shows inventory figures and overdue loans", "01_dashboard.png", dashboard)
+
+        def search():
+            page.goto(BASE + "/equipment/")
+            page.fill("input[name=q]", "multimeter")
+            page.select_option("select[name=status]", "Available")
+            page.click("button:has-text('Search')")
+            expect(page.locator("text=2 item(s) found.")).to_be_visible()
+        step("TB02", "Equipment search by name and availability", "02_equipment_search.png", search)
+
+        def detail():
+            page.goto(BASE + "/equipment/1")
+            expect(page.locator("h1")).to_contain_text("OSC-DS1-0001")
+            expect(page.locator("text=Faulty power switch replaced")).to_be_visible()
+        step("TB03", "Equipment detail with allocation and maintenance history", "03_equipment_detail.png", detail)
+
+        def issue_invalid():
+            page.goto(BASE + "/allocations/new")
+            page.select_option("select[name=equipment_id]", "15")
+            page.select_option("select[name=student_id]", "10")
+            page.select_option("select[name=staff_id]", "1")
+            page.fill("input[name=expected_return_date]", "2026-10-01")
+            page.click("button:has-text('Issue')")
+            expect(page.locator(".error")).to_have_text(
+                "Expected return date must be on or after the allocation date.")
+        step("TB04", "Issue form rejects a due date before the issue date", "04_issue_validation.png", issue_invalid)
+
+        def issue_ok():
+            page.fill("input[name=expected_return_date]", "2026-10-17")
+            page.click("button:has-text('Issue')")
+            expect(page.locator(".flash-success")).to_have_text("Equipment issued (allocation #21).")
+        step("TB05", "Equipment issued through sp_allocate_equipment", "05_issue_success.png", issue_ok)
+
+        def return_item():
+            page.goto(BASE + "/allocations/17/return")
+            page.select_option("select[name=return_condition]", "Good")
+            page.fill("textarea[name=remarks]", "Returned with probes")
+            page.screenshot(path=str(SHOTS / "06_return_form.png"), full_page=True)
+            page.click("button:has-text('Record return')")
+            expect(page.locator(".flash-success")).to_contain_text("Return of OSC-DS1-0001 recorded.")
+        step("TB06", "Return recorded through sp_return_equipment", "07_after_return.png", return_item)
+
+        def duplicate():
+            page.goto(BASE + "/students/new")
+            page.fill("input[name=student_name]", "Copy Student")
+            page.fill("input[name=register_number]", "24BCE1012")
+            page.fill("input[name=department]", "CSE")
+            page.fill("input[name=year_of_study]", "2")
+            page.fill("input[name=email]", "copy@students.example.edu")
+            page.click("button:has-text('Save')")
+            expect(page.locator(".flash-error")).to_have_text("A student with this register number already exists.")
+        step("TB07", "Duplicate register number shows a friendly error", "08_duplicate_student.png", duplicate)
+
+        def maintenance():
+            page.goto(BASE + "/maintenance/?status=Scheduled")
+            page.locator("tr:has-text('MCU-ARD-0009') button:has-text('Start')").click()
+            expect(page.locator(".flash-success")).to_contain_text("now Under Maintenance")
+            page.goto(BASE + "/maintenance/")
+        step("TB08", "Maintenance job started; list shows all jobs", "09_maintenance.png", maintenance)
+
+        def report():
+            page.goto(BASE + "/reports/frequent-borrowers")
+            expect(page.locator("pre.sql")).to_contain_text("HAVING COUNT(*) >")
+            expect(page.locator("text=4 row(s).")).to_be_visible()
+        step("TB09", "Report page shows the SQL and its result", "10_report_sql.png", report)
+
+        def student():
+            page.goto(BASE + "/students/1")
+            expect(page.locator("h1")).to_contain_text("Aarav Menon")
+            expect(page.locator("tbody tr")).to_have_count(4)
+        step("TB10", "Student detail with allocation history", "11_student_detail.png", student)
+
+        browser.close()
+    server.shutdown()
+
+    for test_id, title, status, detail in results:
+        print(f"{status}  {test_id}  {title}" + (f"\n      {detail}" if detail else ""))
+    failed = sum(r[2] == "FAIL" for r in results)
+    print(f"Passed: {len(results) - failed}   Failed: {failed}   Total: {len(results)}")
+    print(f"Screenshots: {SHOTS}")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

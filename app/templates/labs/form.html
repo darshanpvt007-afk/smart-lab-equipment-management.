@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, csrf with context %}
+{% block title %}{{ 'Add' if is_new else 'Edit' }} laboratory{% endblock %}
+{% block content %}
+<h1>{{ 'Add laboratory' if is_new else 'Edit laboratory' }}</h1>
+<form method="post" class="card">
+  {{ csrf() }}
+  {{ field('lab_name', 'Lab name', item, errors, attrs='maxlength=100') }}
+  {{ field('location', 'Location', item, errors, attrs='maxlength=150', help='e.g. Block B, Room 204') }}
+  {{ field('capacity', 'Capacity', item, errors, type='number', attrs='min=1') }}
+  {{ field('lab_type', 'Lab type', item, errors, attrs='maxlength=50', help='e.g. Computer, Electronics, Physics') }}
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a class="btn btn-link" href="{{ url_for('labs.list_labs') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

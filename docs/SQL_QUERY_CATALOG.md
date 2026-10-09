@@ -137,3 +137,25 @@ V01–V14 are violation checks. On correct data each returns **0 rows**, except 
 |---|---|---|
 | `sp_allocate_equipment` | Transaction, `SELECT … FOR UPDATE`, `SIGNAL`, ROLLBACK on error | TC41–TC47, TC53 |
 | `sp_return_equipment` | Multi-table atomic update, lock ordering | TC48–TC52 |
+
+## sql/12_maintenance_procedures.sql: maintenance workflow (Review 3)
+
+| Procedure | Concept | Demonstrated by |
+|---|---|---|
+| `sp_start_maintenance` | Transaction, row lock, business-rule refusal (no work on an issued item) | TC64–TC66, TA25, TA26, TB08 |
+| `sp_complete_maintenance` | Multi-table atomic update; availability decided with CASE | TC67–TC70, TA25, TA27 |
+
+## Queries run by the web application (Review 3)
+
+`app/routes/reports.py` runs these queries, and the Reports page shows each one's SQL next to its live result.
+
+| Report | Based on |
+|---|---|
+| Overdue allocations | Q53 |
+| Equipment per laboratory | Q16 / Q51 |
+| Expenditure per supplier | Q19 |
+| Maintenance cost by type | Q20 |
+| Students borrowing more than the average | Q47 |
+| Equipment never maintained | Q44 |
+| Late returns | Q37 |
+| Jobs costing more than their type's average | Q45 |

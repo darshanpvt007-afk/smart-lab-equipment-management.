@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, select, textarea, csrf with context %}
+{% block title %}Return equipment{% endblock %}
+{% block content %}
+<h1>Record return</h1>
+<dl class="details">
+  <dt>Allocation</dt><dd>#{{ allocation.allocation_id }}</dd>
+  <dt>Equipment</dt><dd>{{ allocation.equipment_name }} ({{ allocation.serial_number }})</dd>
+  <dt>Student</dt><dd>{{ allocation.student_name }} ({{ allocation.register_number }})</dd>
+  <dt>Issued / due</dt><dd>{{ allocation.allocation_date }} / {{ allocation.expected_return_date }}</dd>
+</dl>
+<form method="post" class="card">
+  {{ csrf() }}
+  {{ field('return_date', 'Return date', item, errors, type='date',
+           attrs='min=' ~ allocation.allocation_date ~ ' max=' ~ today.isoformat()) }}
+  {{ select('return_condition', 'Condition on return', conditions, item, errors) }}
+  {{ textarea('remarks', 'Remarks', item, errors) }}
+  <p class="muted">Returning as <strong>Damaged</strong> marks the item Unavailable until it is repaired.</p>
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Record return</button>
+    <a class="btn btn-link" href="{{ url_for('allocations.list_allocations') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

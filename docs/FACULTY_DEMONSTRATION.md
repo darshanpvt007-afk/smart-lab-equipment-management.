@@ -11,7 +11,8 @@ mysql -u <user> -p < sql/02_create_tables.sql
 mysql -u <user> -p < sql/03_insert_sample_data.sql
 mysql -u <user> -p < sql/08_create_views.sql
 mysql -u <user> -p < sql/11_transaction_procedures.sql
-bash tests/run_tests.sh          # optional: should end with "Passed: 63 Failed: 0"
+mysql -u <user> -p < sql/12_maintenance_procedures.sql
+bash tests/run_tests.sh          # optional: should end with "Passed: 71 Failed: 0"
 ```
 
 If the database already exists from an earlier practice run in which you changed data, first run `mysql -u <user> -p < sql/10_reset_database.sql`. This is destructive and wipes the database.
@@ -486,3 +487,54 @@ FLOAT is binary floating point: values such as 0.10 cannot be stored exactly, an
 
 **23. Why is "Condition" called equipment_condition?**
 `CONDITION` is a reserved word in MySQL. A column named `condition` would cause syntax errors unless it was quoted everywhere. `Year` became `year_of_study` for the same kind of reason (DESIGN_DECISIONS D-02).
+
+---
+
+# Part B: Review 3 web application demonstration
+
+The demo takes about 10 minutes. Start from a freshly built database (Part A, "Before the review", including script 12). Put `APP_REFERENCE_DATE=2026-10-10` in `.env`, run `python run.py`, and open http://127.0.0.1:5000.
+
+Every expected result below is checked by an automated test (IDs in brackets) on the same sample data.
+
+| # | Do this | Expect | Say | Requirement |
+|---|---|---|---|---|
+| 1 | Open **Dashboard** | Tiles 20 / 11 / 6 / **3 overdue** / 2 / 1; overdue list: Vikram 12 days, Rohan 5, Aarav 2; 4 open maintenance jobs (TA03, TB01) | "Everything here is a live query: GROUP BY for the tiles, the outstanding-allocations view filtered by date for overdue." | UI, retrieval |
+| 2 | **Equipment** → type `multimeter`, choose *Available*, Search | 2 items: DMM-17B-0005, DMM-17B-0006 (TB02) | "The search text goes to MySQL as a parameter, never pasted into the SQL." | Search |
+| 3 | Click **OSC-DS1-0001** | Detail page: Allocated; 2 allocations; 2 maintenance jobs incl. "Faulty power switch replaced" (TB03) | "One item, its whole lifecycle: purchase, loans, repairs." | Retrieval |
+| 4 | **Students** → *+ Add student*: Rahul Verma, `26bce1201`, cse, 1, rahul.verma@students.example.edu | "Student 26BCE1201 added."; register no. and department stored in capitals (TA07) | "Create of CRUD; the form normalises the input." | CRUD, validation |
+| 5 | Add another student with register number `24BCE1012` | Red message "A student with this register number already exists." (TA09, TB07) | "The UNIQUE constraint rejected it; the app translated MySQL error 1062." | Validation, integrity |
+| 6 | **Allocations** → *+ Issue equipment*: NET-CT-0015, Nisha Fernandes, Ramesh Kumar, expected return **2026-10-01** | Field error "Expected return date must be on or after the allocation date." (TB04) | "Server-side validation, before anything reaches the database." | Validation |
+| 7 | Change the date to 2026-10-17 and Issue | "Equipment issued (allocation #21)."; the item is no longer in the Available list (TB05, TA20) | "This called sp_allocate_equipment: one transaction, row lock, two tables updated together." | SQL through the app, transactions |
+| 8 | **Dashboard** → *Return* on allocation 17 → condition Good → Record return | "Return of OSC-DS1-0001 recorded."; overdue tile now 2 (TB06, TA23) | "sp_return_equipment wrote the return, closed the allocation and made the item Available, atomically." | Transactions |
+| 9 | **Maintenance** → *Scheduled* tab → *Start* on MCU-ARD-0009 | "…now Under Maintenance" (TB08) | "Starting work changes availability; it is refused while an item is with a student." | Workflow |
+| 10 | *Complete* that job: cost 900, condition Good | "Maintenance #10 completed."; MCU-ARD-0009 is Available again (TC67) | "Cost and the new condition are recorded in the same transaction." | Workflow |
+| 11 | **Reports** → *Students borrowing more than the average* | The SQL with `HAVING COUNT(*) > (subquery)`; **6 rows** after steps 4 and 7 (4 rows on the untouched sample data, TB09, TA29) | "Our Review 2 query, now run by the application. It is live: we added a student and an allocation, so the average fell from 20/10 = 2.0 to 21/11 = 1.91, and Kabir and Rohan, with 2 each, now qualify." | Important SQL |
+| 12 | **Labs** → *Delete* on Computer Networks Lab → confirm | "This record cannot be deleted because other records refer to it…" (TA15) | "ON DELETE RESTRICT protects history." | Integrity |
+
+After the demo, reset and rebuild the database (README section 9) to restore the sample state.
+
+## Viva questions for Review 3
+
+**How does the application connect to MySQL?**
+Through `mysql-connector-python` in `app/db.py`. Each web request opens one connection, stored in Flask's `g`, and closes it when the request ends. Writes run with autocommit off: commit on success, rollback on error.
+
+**How do you prevent SQL injection?**
+User input is never concatenated into SQL. Every value is passed as a `%s` parameter to `cursor.execute(sql, params)`, so the driver sends it as data. The search filters build their WHERE clause only from fixed strings. Test TA06 tries `' OR 1=1 --` and a `DROP TABLE` string.
+
+**Where is validation done, and why in two places?**
+In `app/validators.py`, so the user gets a clear message next to each field. And in the database (NOT NULL, UNIQUE, CHECK, FK, procedures), which is the final guarantee even if the app has a bug. Database errors are translated into readable messages by `friendly_error()`.
+
+**Why use stored procedures instead of writing the SQL in Python?**
+Issuing or returning equipment changes two or three tables. The procedures do this in one transaction, with a row lock that stops two staff members issuing the same item at once. Keeping that logic in the database means every client, not only this app, follows the same rules.
+
+**What happens if two people issue the same item at the same moment?**
+The first locks the equipment row. The second waits, then sees "Allocated" and is refused. The functional UNIQUE index also blocks a second active allocation (tests TC53, TC54).
+
+**Why can't I edit an item's availability on the equipment form?**
+Availability must agree with the allocation and maintenance history. It changes only through issue, return, start and complete, so the stored status can never contradict the history (DESIGN_DECISIONS D-21).
+
+**What is the CSRF token for?**
+It stops another website from making your browser submit a form to this app. Every form carries a random token tied to your session, and a POST without it is rejected (TA30).
+
+**How did you test the application?**
+85 pytest tests drive the app through Flask's test client against a database rebuilt before every test. A Playwright script drives a real browser through 10 journeys. To prove the tests can fail, we broke the code on purpose, and the tests caught it.

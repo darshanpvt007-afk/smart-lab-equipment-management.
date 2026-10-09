@@ -17,7 +17,7 @@ Additions beyond the requested structure:
 | File | Why |
 |---|---|
 | `sql/11_transaction_procedures.sql` | Atomic allocation and return procedures, kept in a separate file so the basic scripts stay simple (Phase 6). |
-| `tests/run_tests.sh` | Runs all 63 tests automatically against a separate test database. |
+| `tests/run_tests.sh` | Runs all SQL tests automatically against a separate test database (63 in Review 2; 71 since Review 3 added the maintenance procedures). |
 
 ## D-02 Table and column naming
 
@@ -226,3 +226,39 @@ Review 1 gives Purchase a `Total_Amount` but gives Equipment no price. The total
 ## D-19 Calling the procedures
 
 `START TRANSACTION` inside a stored procedure implicitly commits any transaction the caller already had open. The procedures must therefore be called on their own, not inside an outer transaction. The header of file 11 documents this.
+
+---
+
+## Review 3 decisions
+
+## D-20 Maintenance workflow procedures
+
+`sql/12_maintenance_procedures.sql` adds `sp_start_maintenance` and `sp_complete_maintenance`. This completes the rule in D-08 that `Under Maintenance` ⇔ an `In Progress` job, which until now held only in the sample data.
+
+| Procedure | Behaviour |
+|---|---|
+| `sp_start_maintenance` | Refuses a job that is not `Scheduled`. Refuses work on an item that is currently `Allocated` (it is with a student). Otherwise sets the job `In Progress` with the start date and the item `Under Maintenance`. |
+| `sp_complete_maintenance` | Requires a cost of 0 or more, then records it. Sets the item's new condition. The item becomes `Available`, or `Unavailable` if still Damaged, unless another job on it is still in progress. |
+
+Scheduling a job is a plain INSERT with status `Scheduled`, and it does not change availability. Both procedures follow file 11's conventions: lock the equipment row first, one transaction, ROLLBACK + RESIGNAL, error 1644 for refusals. Tests TC64–TC71 and TA25–TA27 cover them.
+
+## D-21 The web application changes statuses only through workflows
+
+The CRUD forms never edit `availability_status`, `equipment_condition`, `allocation_status` or `maintenance_status`:
+- **New equipment** starts `Available`, with condition New, Good or Fair.
+- **Later changes** happen only through Issue, Return, Start and Complete, each a stored procedure.
+- **Plain forms** exist only for allocation and maintenance *creation*: the Issue form calls the procedure, and the Schedule form inserts a `Scheduled` job.
+
+Two more rules are enforced in the app:
+- **Purchase status.** A purchase that already has equipment must stay `Received` (audit V14).
+- **Register number format.** The pattern `24BCE1012` (2 digits, 3 letters, 4 digits) is checked by the form, not by the database, because Review 1 did not fix a format.
+
+## D-22 Application security and configuration
+
+| Concern | Measure |
+|---|---|
+| SQL injection | User input reaches MySQL only as a `%s` parameter. Search WHERE clauses are built from fixed strings (TA06). |
+| Cross-site request forgery | A random per-session token must accompany every POST, and a POST without it is rejected with 400 (TA30). |
+| Cross-site scripting | Jinja escapes every value (TA31). |
+| Credentials | Credentials come from environment variables or the git-ignored `.env`; nothing is hard-coded. `SECRET_KEY` falls back to a random value per start. |
+| Authentication | Not implemented. The course does not require it, and it is listed as a next step. |

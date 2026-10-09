@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, select, csrf with context %}
+{% block title %}Issue equipment{% endblock %}
+{% block content %}
+<h1>Issue equipment</h1>
+<form method="post" class="card">
+  {{ csrf() }}
+  {{ select('equipment_id', 'Equipment (available only)', equipment, item, errors) }}
+  {{ select('student_id', 'Student', students, item, errors) }}
+  {{ select('staff_id', 'Issued by', staff, item, errors) }}
+  {{ field('allocation_date', 'Allocation date', item, errors, type='date', attrs='max=' ~ today.isoformat()) }}
+  {{ field('expected_return_date', 'Expected return date', item, errors, type='date') }}
+  <p class="muted">Saving calls <code>sp_allocate_equipment</code>: the allocation and the equipment's
+     new status are saved together in one transaction.</p>
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Issue</button>
+    <a class="btn btn-link" href="{{ url_for('allocations.list_allocations') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

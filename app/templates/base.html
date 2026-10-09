@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Smart Lab{% endblock %} · Smart Lab Equipment</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="{{ url_for('dashboard.index') }}">Smart Lab Equipment</a>
+  <nav>
+    {% set ep = request.endpoint or '' %}
+    {% for bp_name, label, endpoint in [
+        ('dashboard', 'Dashboard', 'dashboard.index'),
+        ('equipment', 'Equipment', 'equipment.list_equipment'),
+        ('allocations', 'Allocations', 'allocations.list_allocations'),
+        ('maintenance', 'Maintenance', 'maintenance.list_jobs'),
+        ('students', 'Students', 'students.list_students'),
+        ('staff', 'Staff', 'staff.list_staff'),
+        ('labs', 'Labs', 'labs.list_labs'),
+        ('categories', 'Categories', 'categories.list_categories'),
+        ('suppliers', 'Suppliers', 'suppliers.list_suppliers'),
+        ('purchases', 'Purchases', 'purchases.list_purchases'),
+        ('reports', 'Reports', 'reports.index')] %}
+      <a href="{{ url_for(endpoint) }}" class="{{ 'active' if ep.startswith(bp_name + '.') }}">{{ label }}</a>
+    {% endfor %}
+  </nav>
+  <span class="date-chip" title="{{ 'Fixed reference date (APP_REFERENCE_DATE)' if reference_date_fixed else 'Current date' }}">
+    {{ 'Reference date' if reference_date_fixed else 'Today' }}: {{ today.isoformat() }}
+  </span>
+</header>
+
+<main>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash flash-{{ category }}" role="alert">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer>Smart Laboratory Equipment Inventory, Allocation and Maintenance Management System · Review 3 prototype</footer>
+</body>
+</html>
