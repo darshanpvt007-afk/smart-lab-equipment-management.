@@ -221,20 +221,22 @@ Passed: 63   Failed: 0   Total: 63
 
 | Item | Value |
 |---|---|
-| Date of run | 2026-10-09 (UTC) |
+| Date of run | 2026-10-09 (UTC); rerun after the audit fixes the same day |
 | Environment | Same sandbox: MySQL 8.0.46, Python 3.13, Flask 3.1.3, mysql-connector-python 26.7.0, pytest 9.1.1, Playwright 1.63 with Chromium |
-| Database suite | `bash tests/run_tests.sh`: **71 passed, 0 failed** (TC01–TC63 unchanged + TC64–TC71 for the maintenance procedures) |
-| Application suite | `python -m pytest`: **98 passed, 0 failed** (TA01–TA32 and TA40–TA47; TA01, TA28 and TA32 are parameterised), about 50 s |
-| Browser walkthrough | `python tests/browser_walkthrough.py`: **13 passed, 0 failed** (TB01–TB13), at 1440 × 900 and 390 × 844 |
+| Database suite | `bash tests/run_tests.sh`: **74 passed, 0 failed** (TC01–TC63 unchanged + TC64–TC71 for the maintenance procedures + TC72–TC74 for the register-number CHECK) |
+| Application suite | `python -m pytest`: **99 passed, 0 failed** (TA01–TA32 and TA40–TA48; TA01, TA28 and TA32 are parameterised), about 55 s as root and 71 s as the limited `labadmin` account |
+| Browser walkthrough | `python tests/browser_walkthrough.py`: **13 passed, 0 failed** (TB01–TB13), at 1440 × 900 and 390 × 844. Last run in a scratch copy of the project; its 14 screenshots were byte-identical (MD5) to the committed ones |
 | Not executed | None |
 
 ## How the results were checked
 
 - **Mutation checks.** Each suite was run against deliberately broken code: the register-number pattern weakened to accept anything, and the CSRF check disabled. The matching tests (TA08, TA30) failed both times, and the code was then restored. For the enterprise UI, the *Needs attention* view was narrowed to Unavailable only (TA40 failed) and the CSV formula guard was removed (TA44 failed); both were restored. A test suite that could never fail would prove nothing.
+- **Register-number CHECK.** The `'c'` (case-sensitive) flag was removed in a scratch copy: TC73 and TC74 failed (72 passed, 2 failed), proving the flag is needed under the case-insensitive default collation. On MySQL 8.0.46, `REGEXP_LIKE('24bce1012', '^[0-9]{2}[A-Z]{3}[0-9]{4}$')` returns 1 and with `'c'` returns 0. The README upgrade command (`ALTER TABLE student ADD CONSTRAINT …`) was run on throwaway databases built from the previous schema: it added the constraint on valid data, and on a table holding a malformed number it failed with ERROR 3819 and changed nothing.
+- **README instructions.** The database suite was run with `MYSQL_CMD="sudo mysql"` (74/74), and pytest as a `labadmin` account holding only the grants listed in README section 5 (99/99).
 - **Screenshots.** They were inspected by eye. This found and fixed a layout bug (table headers misaligned with their columns) and a wrapping navigation bar before the final run. For the enterprise UI, TB13 found that plain tables made phone-width pages scroll sideways by up to 461 px; tables now scroll inside themselves and every page was re-measured at 0 px.
 - **Demo script.** The 12 steps of `FACULTY_DEMONSTRATION.md` Part B were run in order through the app on a fresh database. This found one wrong expectation: step 11 shows 6 rows, not 4, after the earlier steps add a student and an allocation. The guide was corrected.
 
-## Maintenance procedure tests (from the database run)
+## Maintenance procedure and register-number tests (from the database run)
 
 ```
 PASS  TC64  sp_start_maintenance starts a Scheduled job and sets the item Under Maintenance
@@ -245,7 +247,10 @@ PASS  TC68  sp_complete_maintenance refuses a missing cost
 PASS  TC69  ...and job 8 is unchanged (still In Progress, item still Under Maintenance)
 PASS  TC70  With two jobs In Progress on one item, completing one keeps it Under Maintenance
 PASS  TC71  After the maintenance workflow, validation still finds no violations
-Passed: 71   Failed: 0   Total: 71
+PASS  TC72  Malformed register number '24BC1012' rejected (CHECK)
+PASS  TC73  Lower-case register number '26bce1997' rejected (case-sensitive CHECK)
+PASS  TC74  chk_student_register_no is declared and enforced on student
+Passed: 74   Failed: 0   Total: 74
 ```
 
 ## Application tests (pytest, every test PASSED)
@@ -264,6 +269,7 @@ tests/web/test_crud.py::test_ta16_category_crud
 tests/web/test_crud.py::test_ta17_supplier_validation_and_crud
 tests/web/test_crud.py::test_ta18_staff_crud
 tests/web/test_crud.py::test_ta19_purchase_rules
+tests/web/test_crud.py::test_ta48_database_rejects_malformed_register_numbers
 tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/]
 tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/equipment/]
 tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/equipment/1]
@@ -299,11 +305,24 @@ tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/maintenance/?sta
 tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/maintenance/new]
 tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/maintenance/8/complete]
 tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/reports/]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/search]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/search?q=meter]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/equipment/1?tab=loans]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/equipment/1?tab=maintenance]
+tests/web/test_pages_and_search.py::test_ta01_every_page_loads[/equipment/?view=attention&sort=activity&dir=desc&per_page=10&page=2]
 tests/web/test_pages_and_search.py::test_ta02_unknown_records_give_404
 tests/web/test_pages_and_search.py::test_ta03_dashboard_figures_match_sample_data
+tests/web/test_pages_and_search.py::test_ta47_sidebar_counts
 tests/web/test_pages_and_search.py::test_ta04_equipment_search_and_filters
 tests/web/test_pages_and_search.py::test_ta05_student_search_and_filters
 tests/web/test_pages_and_search.py::test_ta06_search_text_cannot_inject_sql
+tests/web/test_pages_and_search.py::test_ta40_saved_views_and_counts
+tests/web/test_pages_and_search.py::test_ta41_sorting_is_whitelisted
+tests/web/test_pages_and_search.py::test_ta42_pagination
+tests/web/test_pages_and_search.py::test_ta43_csv_export_follows_filters
+tests/web/test_pages_and_search.py::test_ta44_csv_export_neutralises_formulas
+tests/web/test_pages_and_search.py::test_ta45_global_search
+tests/web/test_pages_and_search.py::test_ta46_equipment_detail_tabs_and_lifecycle
 tests/web/test_reports_security_validators.py::test_ta28_every_report_runs_and_shows_its_sql[overdue]
 tests/web/test_reports_security_validators.py::test_ta28_every_report_runs_and_shows_its_sql[equipment-per-lab]
 tests/web/test_reports_security_validators.py::test_ta28_every_report_runs_and_shows_its_sql[supplier-spend]

@@ -12,7 +12,7 @@ mysql -u <user> -p < sql/03_insert_sample_data.sql
 mysql -u <user> -p < sql/08_create_views.sql
 mysql -u <user> -p < sql/11_transaction_procedures.sql
 mysql -u <user> -p < sql/12_maintenance_procedures.sql
-bash tests/run_tests.sh          # optional: should end with "Passed: 71 Failed: 0"
+bash tests/run_tests.sh          # optional: should end with "Passed: 74 Failed: 0"
 ```
 
 If the database already exists from an earlier practice run in which you changed data, first run `mysql -u <user> -p < sql/10_reset_database.sql`. This is destructive and wipes the database.
@@ -537,4 +537,4 @@ Availability must agree with the allocation and maintenance history. It changes 
 It stops another website from making your browser submit a form to this app. Every form carries a random token tied to your session, and a POST without it is rejected (TA30).
 
 **How did you test the application?**
-98 pytest tests drive the app through Flask's test client against a database rebuilt before every test. A Playwright script drives a real browser through 13 journeys, including one at phone width. To prove the tests can fail, we broke the code on purpose, and the tests caught it.
+99 pytest tests drive the app through Flask's test client against a database rebuilt before every test. A Playwright script drives a real browser through 13 journeys, including one at phone width. To prove the tests can fail, we broke the code on purpose, and the tests caught it.

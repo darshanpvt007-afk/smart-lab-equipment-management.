@@ -1,5 +1,10 @@
 """TA07-TA19: create, read, update and delete through the web forms,
-including input validation and friendly database error messages."""
+including input validation and friendly database error messages.
+TA48: the database CHECK on register numbers."""
+import mysql.connector
+import pytest
+
+from app.db import friendly_error
 
 STUDENT = {"student_name": "Rahul Verma", "register_number": "26bce1201", "department": "cse",
            "year_of_study": "1", "email": "rahul.verma@students.example.edu"}
@@ -163,3 +168,15 @@ def test_ta19_purchase_rules(client, sql):
     page = text(client.post("/purchases/1/edit", edit))
     assert "4 equipment item(s) already belong to this purchase" in page
     assert sql("SELECT purchase_status FROM purchase WHERE purchase_id = 1")[0]["purchase_status"] == original["purchase_status"]
+
+
+def test_ta48_database_rejects_malformed_register_numbers(sql):
+    # The database enforces the same format as the form, even for SQL that
+    # bypasses the app, and the app turns the error into the form's message.
+    for bad in ("24BC1012", "26bce1997", "24BCE10120"):
+        with pytest.raises(mysql.connector.Error) as caught:
+            sql("INSERT INTO student (student_name, register_number, department, year_of_study, email) "
+                "VALUES ('Direct Insert', %s, 'CSE', 1, 'direct.insert@students.example.edu')", (bad,))
+        assert caught.value.errno == 3819
+        assert friendly_error(caught.value) == "Register number must look like 24BCE1012."
+    assert sql("SELECT COUNT(*) AS n FROM student")[0]["n"] == 10

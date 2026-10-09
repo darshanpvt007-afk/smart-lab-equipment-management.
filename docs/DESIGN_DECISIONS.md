@@ -17,7 +17,7 @@ Additions beyond the requested structure:
 | File | Why |
 |---|---|
 | `sql/11_transaction_procedures.sql` | Atomic allocation and return procedures, kept in a separate file so the basic scripts stay simple (Phase 6). |
-| `tests/run_tests.sh` | Runs all SQL tests automatically against a separate test database (63 in Review 2; 71 since Review 3 added the maintenance procedures). |
+| `tests/run_tests.sh` | Runs all SQL tests automatically against a separate test database (63 in Review 2; 71 after Review 3 added the maintenance procedures; 74 with the register-number check). |
 
 ## D-02 Table and column naming
 
@@ -103,6 +103,7 @@ Review 1 names the status and condition attributes but does not list their value
 Other CHECK constraints:
 - `lab.capacity > 0`
 - `student.year_of_study BETWEEN 1 AND 5`
+- `student.register_number` matches `^[0-9]{2}[A-Z]{3}[0-9]{4}$` with `REGEXP_LIKE(…, 'c')` (`chk_student_register_no`). Added after Review 3 so the database enforces the same rule as the web form, even for SQL that bypasses the app. The `'c'` flag is required: the default collation `utf8mb4_0900_ai_ci` is case-insensitive, so without it `24bce1012` would pass. Tests TC72–TC74, TA48.
 - `purchase.total_amount > 0`
 - `maintenance.maintenance_cost >= 0`
 - `expected_return_date >= allocation_date`

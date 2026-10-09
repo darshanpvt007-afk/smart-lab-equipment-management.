@@ -1,11 +1,11 @@
 # Test Cases
 
-These are the test definitions, 182 in all, and every case is automated under the same ID. Results of the latest run are in `docs/TEST_REPORT.md`.
+These are the test definitions, 186 in all, and every case is automated under the same ID. Results of the latest run are in `docs/TEST_REPORT.md`.
 
 | IDs | Suite | Run with |
 |---|---|---|
-| TC01–TC71 | Database tests (A–H Review 2; I Review 3) | `bash tests/run_tests.sh` |
-| TA01–TA32, TA40–TA47 (98 test functions with parameters) | Web application tests (J) | `python -m pytest` |
+| TC01–TC74 | Database tests (A–H Review 2; I Review 3; L register-number check) | `bash tests/run_tests.sh` |
+| TA01–TA32, TA40–TA48 (99 test functions with parameters) | Web application tests (J) | `python -m pytest` |
 | TB01–TB13 | Browser walkthrough (K) | `python tests/browser_walkthrough.py` |
 
 The automated runner works on a separate database, `smart_lab_equipment_test`, rebuilt from the scripts. To try a case by hand, run its SQL in the `mysql` client against `smart_lab_equipment_db`:
@@ -191,6 +191,7 @@ Before every test, the database `smart_lab_equipment_apptest` is rebuilt from sc
 | TA45 | Global search | `/search?q=menon`, `?q=OSC-DS1`, `?q=' OR 1=1 --` | 1 result; 2 equipment results; 0 results |
 | TA46 | Equipment detail tabs | `/equipment/1`, `?tab=loans`, `?tab=maintenance` | Overdue 2 days banner; lifecycle issued, completed, returned, issued, completed, received; "2 loans · 2 maintenance jobs · ₹4,250 spent"; 2 loan rows; total 4,250.00 |
 | TA47 | Sidebar counts | Any page | 20 equipment, 4 open jobs, 3 overdue, 10 students, 4 staff, 1 open purchase |
+| TA48 | Register-number CHECK | Direct SQL INSERT (bypassing the app) of `24BC1012`, `26bce1997`, `24BCE10120` | ERROR 3819 each; `friendly_error()` returns "Register number must look like 24BCE1012."; still 10 students |
 
 ## K. Browser walkthrough (`python tests/browser_walkthrough.py`)
 
@@ -211,3 +212,13 @@ The walkthrough uses a real Chromium browser against a freshly built test databa
 | TB11 | Equipment list: click *Needs attention*, then sort by *Last activity* | Rows = tab count; column marked ascending |
 | TB12 | Issue form for DMM-17B-0005: pick student 10, click *2 weeks* | Due date 2026-10-24; 4 checks passed; summary shows the serial |
 | TB13 | Phone width (390 px): open the menu | Sidebar hidden, then shown by the toggle; no sideways page scroll |
+
+## L. Register-number format (database, `tests/run_tests.sh`)
+
+The CHECK `chk_student_register_no` in `sql/02_create_tables.sql` enforces the same format as the web form: 2 digits, 3 capital letters, 4 digits (`24BCE1012`). It uses `REGEXP_LIKE(..., 'c')` so the match is case-sensitive under the default collation.
+
+| ID | Objective | SQL | Expected |
+|---|---|---|---|
+| TC72 | Malformed number **(rejected)** | `INSERT INTO student (student_name, register_number, department, year_of_study, email) VALUES ('Bad Register','24BC1012','CSE',2,'bad.register@students.example.edu');` | ERROR 3819 |
+| TC73 | Lower-case number **(rejected)** | Same insert with `'26bce1997'` | ERROR 3819 (proves the check is case-sensitive) |
+| TC74 | Constraint declared and data valid | `information_schema.TABLE_CONSTRAINTS` for `student`, plus a count of stored numbers that do not match | `chk_student_register_no,YES,0` |

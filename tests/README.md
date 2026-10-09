@@ -1,11 +1,11 @@
 # Tests
 
-The project has three automated test suites, 182 tests in all, each run by one command. Every suite builds its **own** database from the SQL scripts, so none of them reads or changes `smart_lab_equipment_db`.
+The project has three automated test suites, 186 tests in all, each run by one command. Every suite builds its **own** database from the SQL scripts, so none of them reads or changes `smart_lab_equipment_db`.
 
 | Suite | IDs | Command | Database it builds | Needs |
 |---|---|---|---|---|
-| Database | TC01–TC71 | `bash tests/run_tests.sh` | `smart_lab_equipment_test` | bash, `mysql` client |
-| Web application | TA01–TA32, TA40–TA47 (98 tests) | `python -m pytest` | `smart_lab_equipment_apptest` (rebuilt before every test) | `pip install -r requirements.txt`, `mysql` client |
+| Database | TC01–TC74 | `bash tests/run_tests.sh` | `smart_lab_equipment_test` | bash, `mysql` client |
+| Web application | TA01–TA32, TA40–TA48 (99 tests) | `python -m pytest` | `smart_lab_equipment_apptest` (rebuilt before every test) | `pip install -r requirements.txt`, `mysql` client |
 | Browser walkthrough | TB01–TB13 | `python tests/browser_walkthrough.py` | `smart_lab_equipment_apptest` | `pip install playwright` and `python -m playwright install chromium` |
 
 | File | Content |
@@ -38,6 +38,6 @@ GRANT ALL PRIVILEGES ON smart_lab_equipment_apptest.* TO 'labadmin'@'localhost';
 
 ## Notes
 
-- **Run times.** The database suite takes about 6 seconds, the application suite about 45 seconds (it rebuilds the database 98 times), and the browser walkthrough about 10 seconds.
+- **Run times.** The database suite takes about 6 seconds, the application suite about 45 seconds (it rebuilds the database 99 times), and the browser walkthrough about 10 seconds.
 - **Keeping the test database.** Set `KEEP_TEST_DB=1` to keep `smart_lab_equipment_test` after the database suite.
 - **Browser path.** The walkthrough uses Playwright's own Chromium. `CHROMIUM_PATH=/path/to/chrome` points it at another browser.
