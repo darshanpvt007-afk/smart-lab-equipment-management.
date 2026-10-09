@@ -111,7 +111,7 @@ Foreign keys: none. Referenced by `purchase.supplier_id`.
 |---|---|---|---|---|
 | student_id | INT | NN | PK, AI | Student_ID |
 | student_name | VARCHAR(100) | NN | | Student_Name |
-| register_number | VARCHAR(15) | NN | UQ `uq_student_register_no` | Register_Number |
+| register_number | VARCHAR(15) | NN | UQ `uq_student_register_no`; CHECK `chk_student_register_no`: format `24BCE1012` (2 digits, 3 capitals, 4 digits; case-sensitive) | Register_Number |
 | department | VARCHAR(60) | NN | INDEX `idx_student_department_year` | Department |
 | year_of_study | TINYINT | NN | CHECK `chk_student_year`: 1–5 | Year (renamed, see D-02) |
 | email | VARCHAR(120) | NN | UQ `uq_student_email`; CHECK `chk_student_email` | Email |

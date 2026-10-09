@@ -14,8 +14,8 @@ Review 3 adds a Python Flask web application on top of the unchanged Review 2 da
 | Search / retrieval | Equipment: text (name or serial) + lab + category + availability. Students: text (name or register number) + department + year. Global search across equipment, students, staff and labs. Detail pages for equipment and students with full history | TA04–TA06, TA45, TA46, TB02, TB03, TB10 |
 | Important SQL queries through the application | Reports page runs 8 Review 2 queries and prints their SQL. Dashboard and lists use the views. Workflows call the 4 stored procedures | TA20–TA29, TB05, TB06, TB08, TB09 |
 | Input validation | `app/validators.py` (required, length, format, range, money, date rules) + HTML attributes; database constraints remain the final guard; database errors become plain messages | TA08, TA09, TA13, TA17, TA19, TA22, TA24, TA25, TA32, TB04, TB07 |
-| Test cases | 71 database + 98 application + 13 browser tests | `TEST_REPORT.md` |
-| Final database | `sql/01`–`12` | TC01–TC71 |
+| Test cases | 74 database + 99 application + 13 browser tests | `TEST_REPORT.md` |
+| Final database | `sql/01`–`12` (including the register-number CHECK added after the audit) | TC01–TC74 |
 | Final project report, presentation | Delivered separately as a shareable document and a slide deck (exportable to Word/PDF and PowerPoint/PDF) | — |
 
 ## 2. Application structure

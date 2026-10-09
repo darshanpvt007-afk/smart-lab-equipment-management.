@@ -462,6 +462,23 @@ expect_value TC70 "With two jobs In Progress on one item, completing one keeps i
 q "DELETE FROM maintenance WHERE maintenance_id=901" >/dev/null
 check_validation TC71 "After the maintenance workflow, validation still finds no violations"
 
+# ---------- 10. register-number format (CHECK chk_student_register_no) ----
+expect_error TC72 "Malformed register number '24BC1012' rejected (CHECK)" \
+ "INSERT INTO student (student_name, register_number, department, year_of_study, email)
+  VALUES ('Bad Register','24BC1012','CSE',2,'bad.register@students.example.edu')" 3819
+
+expect_error TC73 "Lower-case register number '26bce1997' rejected (case-sensitive CHECK)" \
+ "INSERT INTO student (student_name, register_number, department, year_of_study, email)
+  VALUES ('Lower Case','26bce1997','CSE',1,'lower.case@students.example.edu')" 3819
+
+expect_value TC74 "chk_student_register_no is declared and enforced on student" \
+ "SELECT CONCAT_WS(',', tc.CONSTRAINT_NAME, tc.ENFORCED,
+         (SELECT COUNT(*) FROM student WHERE NOT REGEXP_LIKE(register_number, '^[0-9]{2}[A-Z]{3}[0-9]{4}\$', 'c')))
+  FROM information_schema.TABLE_CONSTRAINTS tc
+  WHERE tc.TABLE_SCHEMA='${TEST_DB}' AND tc.TABLE_NAME='student'
+    AND tc.CONSTRAINT_NAME='chk_student_register_no'" \
+ "chk_student_register_no,YES,0"
+
 # ---------- summary ---------------------------------------------------
 if [ "${KEEP_TEST_DB:-0}" != 1 ]; then
     $MYSQL_CMD -e "DROP DATABASE IF EXISTS ${TEST_DB}"

@@ -86,6 +86,10 @@ CREATE TABLE student (
     CONSTRAINT uq_student_register_no  UNIQUE (register_number),
     CONSTRAINT uq_student_email        UNIQUE (email),
     CONSTRAINT chk_student_year        CHECK (year_of_study BETWEEN 1 AND 5),
+    -- Same rule as the web form (app/validators.py REGISTER_RE): 2 digits,
+    -- 3 capital letters, 4 digits. 'c' = case-sensitive; without it the
+    -- default collation (utf8mb4_0900_ai_ci) would also accept '24bce1012'.
+    CONSTRAINT chk_student_register_no CHECK (REGEXP_LIKE(register_number, '^[0-9]{2}[A-Z]{3}[0-9]{4}$', 'c')),
     CONSTRAINT chk_student_email       CHECK (REGEXP_LIKE(email, '^[^@ ]+@[^@ ]+\\.[^@ ]+$'))
 ) ENGINE = InnoDB;
 

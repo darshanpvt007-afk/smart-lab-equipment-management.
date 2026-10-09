@@ -99,6 +99,7 @@ UNIQUE_MESSAGES = {
 
 CHECK_MESSAGES = {
     "chk_student_year": "Year of study must be between 1 and 5.",
+    "chk_student_register_no": "Register number must look like 24BCE1012.",
     "chk_lab_capacity": "Capacity must be greater than 0.",
     "chk_purchase_amount": "Total amount must be greater than 0.",
     "chk_allocation_dates": "Expected return date must be on or after the allocation date.",

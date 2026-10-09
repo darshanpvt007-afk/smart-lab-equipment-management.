@@ -21,7 +21,7 @@ The system records a college's laboratories, equipment, categories, suppliers, p
 | 3 | Search and retrieval | Equipment and student search and filters; detail pages with full history |
 | 3 | Important SQL queries through the application | Reports page (`app/routes/reports.py`), dashboard, issue/return/maintenance workflows calling stored procedures |
 | 3 | Input validation | `app/validators.py` and HTML form attributes; database constraints as the final guard |
-| 3 | Test cases | `tests/` (database, application and browser tests: 182 in total) |
+| 3 | Test cases | `tests/` (database, application and browser tests: 186 in total) |
 | 3 | Final database | `sql/01`–`12` (`sql/12_maintenance_procedures.sql` is new in Review 3) |
 | 3 | Final report and presentation | Delivered separately (see `docs/REVIEW3_IMPLEMENTATION.md`) |
 
@@ -60,7 +60,7 @@ The system records a college's laboratories, equipment, categories, suppliers, p
 │   ├── 11_transaction_procedures.sql                    sp_allocate_equipment, sp_return_equipment
 │   └── 12_maintenance_procedures.sql                    sp_start_maintenance, sp_complete_maintenance
 ├── tests/
-│   ├── run_tests.sh            database tests TC01–TC71
+│   ├── run_tests.sh            database tests TC01–TC74
 │   ├── web/                    application tests TA01–TA32 (pytest)
 │   ├── browser_walkthrough.py  browser tests TB01–TB13 + screenshots
 │   ├── test_cases.md           every test case described
@@ -99,36 +99,64 @@ supplier ──1:N── purchase ──1:N── equipment ──N:1── equi
 
 ## 5. Set up the database
 
-Install **MySQL Server 8.0** (<https://dev.mysql.com/downloads/mysql/>; Ubuntu `sudo apt install mysql-server`; macOS `brew install mysql`). Then, from the project folder:
+Install **MySQL Server 8.0.16 or newer** (<https://dev.mysql.com/downloads/mysql/>; macOS `brew install mysql`).
+
+**Ubuntu.** The `mysql-server` package sets up `root` with socket authentication: root has no password and signs in through `sudo`. So on Ubuntu, `mysql -u root -p` fails with *Access denied for user 'root'@'localhost'*; use `sudo mysql` instead.
 
 ```bash
-mysql -u root -p < sql/01_create_database.sql
-mysql -u root -p < sql/02_create_tables.sql
-mysql -u root -p < sql/03_insert_sample_data.sql
-mysql -u root -p < sql/08_create_views.sql
-mysql -u root -p < sql/11_transaction_procedures.sql
-mysql -u root -p < sql/12_maintenance_procedures.sql
+sudo apt update
+sudo apt install mysql-server
+sudo systemctl start mysql              # if it is not already running
+sudo mysql -e "SELECT VERSION();"       # must be 8.0.16 or newer
+```
+
+Then, from the project folder, build the database:
+
+```bash
+# Ubuntu (root via sudo)
+for f in 01_create_database 02_create_tables 03_insert_sample_data \
+         08_create_views 11_transaction_procedures 12_maintenance_procedures; do
+  sudo mysql < sql/$f.sql
+done
+
+# Other systems where root has a password: the same loop with
+#   mysql -u root -p < sql/$f.sql
 ```
 
 Windows PowerShell does not support `<`. Use `Get-Content sql\01_create_database.sql | mysql -u root -p`, or `SOURCE sql/01_create_database.sql;` inside the `mysql` client.
 
-It is better to give the application its own MySQL account than to use `root`:
+Give the application its own MySQL account instead of `root` (choose your own password). The last two grants are only needed to run the tests (section 8), which build these two separate test databases:
 
-```sql
+```bash
+sudo mysql <<'SQL'
 CREATE USER 'labadmin'@'localhost' IDENTIFIED BY 'choose-a-password';
-GRANT ALL PRIVILEGES ON smart_lab_equipment_db.* TO 'labadmin'@'localhost';
+GRANT ALL PRIVILEGES ON smart_lab_equipment_db.*      TO 'labadmin'@'localhost';
+GRANT ALL PRIVILEGES ON smart_lab_equipment_test.*    TO 'labadmin'@'localhost';
+GRANT ALL PRIVILEGES ON smart_lab_equipment_apptest.* TO 'labadmin'@'localhost';
+SQL
+```
+
+If MySQL answers *Your password does not satisfy the current policy requirements*, the `validate_password` component is on: choose a longer password with upper case, lower case, a digit and a symbol.
+
+**Upgrading a database built before the register-number check.** Script 02 now includes `chk_student_register_no` (format `24BCE1012`). A database built earlier keeps working without it. To add it without rebuilding (it fails, and changes nothing, if any stored register number does not match):
+
+```bash
+sudo mysql smart_lab_equipment_db -e "ALTER TABLE student ADD CONSTRAINT chk_student_register_no CHECK (REGEXP_LIKE(register_number, '^[0-9]{2}[A-Z]{3}[0-9]{4}\$', 'c'));"
 ```
 
 ## 6. Run the web application
 
 ```bash
-python -m venv .venv
+sudo apt install python3 python3-venv python3-pip   # Ubuntu, once
+python3 -m venv .venv                # Windows: python -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env                 # Windows: copy .env.example .env
-# edit .env: DB_USER, DB_PASSWORD, SECRET_KEY
+nano .env                            # set DB_USER=labadmin, DB_PASSWORD, SECRET_KEY
 python run.py
 ```
+
+Generate a `SECRET_KEY` with `python -c "import secrets; print(secrets.token_hex(32))"`. Inside the activated virtual environment, `python` means the environment's Python 3.
 
 Then open **http://127.0.0.1:5000**.
 
@@ -137,44 +165,55 @@ Then open **http://127.0.0.1:5000**.
 
 | Page | What it does |
 |---|---|
-| Dashboard | Inventory counts by status, overdue loans with a Return button, open maintenance jobs |
-| Equipment | Search by name or serial; filter by lab, category and availability; add, edit, delete; detail page with allocation and maintenance history |
-| Allocations | Issued / overdue / returned / all lists; Issue form (`sp_allocate_equipment`); Return form (`sp_return_equipment`) |
+| Layout | Top bar with global search (press `/`) and the reference date; sidebar grouped into Inventory, Loans, People, Procurement and Administration with live counts; breadcrumbs; menu button on phones |
+| Dashboard | Operations overview: cards for available items, items on loan, overdue loans and maintenance (with cost committed and spent); overdue loans with who issued them and a *Record return* button; items due in the next 4 days; loans issued per month; lab utilisation; recent activity |
+| Equipment | Saved views (All, Available, On loan, Needs attention) with counts; search by name or serial; filter by lab, category and availability; sortable columns; last activity; one action per row (Issue, Record return, Start job, Complete job, Schedule repair); 10/25/50 rows per page; Export CSV; add, edit, delete |
+| Equipment page | Status and overdue banner, key facts and lifetime maintenance cost, lifecycle timeline, Loans and Maintenance tabs |
+| Allocations | Issued / overdue / returned / all lists; Issue form (`sp_allocate_equipment`) with quick due dates, live pre-issue checks and Ctrl+Enter; Return form (`sp_return_equipment`) |
 | Maintenance | Schedule a job; Start (`sp_start_maintenance`); Complete with cost and condition (`sp_complete_maintenance`) |
 | Students | Search by name or register number; filter by department and year; add, edit, delete; history |
 | Staff, Labs, Categories, Suppliers, Purchases | List with counts and totals; add, edit, delete |
 | Reports | 8 reports, each showing its SQL next to the live result |
+| Search | One search across equipment, students, staff and labs |
 
 ## 7. Run the SQL scripts directly (Review 2)
 
 ```bash
-mysql -u root -p -t < sql/04_basic_queries.sql        # Q01–Q15
-mysql -u root -p -t < sql/05_aggregate_queries.sql    # Q16–Q27
-mysql -u root -p -t < sql/06_join_queries.sql         # Q28–Q38
-mysql -u root -p -t < sql/07_subqueries.sql           # Q39–Q49
-mysql -u root -p -t < sql/08_create_views.sql         # views + Q50–Q55
-mysql -u root -p -t < sql/09_validation_queries.sql   # V01–V16
+sudo mysql -t < sql/04_basic_queries.sql        # Q01–Q15   (other systems: mysql -u root -p -t < …)
+sudo mysql -t < sql/05_aggregate_queries.sql    # Q16–Q27
+sudo mysql -t < sql/06_join_queries.sql         # Q28–Q38
+sudo mysql -t < sql/07_subqueries.sql           # Q39–Q49
+sudo mysql -t < sql/08_create_views.sql         # views + Q50–Q55
+sudo mysql -t < sql/09_validation_queries.sql   # V01–V16
 ```
 
 ## 8. Run the tests
 
-All three suites build their own separate databases and never touch `smart_lab_equipment_db`.
+All three suites build their own separate databases (`smart_lab_equipment_test` and `smart_lab_equipment_apptest`), drop and rebuild them freely, and never touch `smart_lab_equipment_db`.
 
 ```bash
-bash tests/run_tests.sh                     # database: expect "Passed: 71   Failed: 0   Total: 71"
-python -m pytest                            # application: expect "98 passed"
-python tests/browser_walkthrough.py         # optional, needs: pip install playwright && python -m playwright install chromium
+# database tests (Ubuntu: run the mysql client through sudo)
+MYSQL_CMD="sudo mysql" bash tests/run_tests.sh   # expect "Passed: 74   Failed: 0   Total: 74"
+
+# application tests, as labadmin (needs the test-database grants from section 5)
+export DB_USER=labadmin
+read -rsp "MySQL password for labadmin: " DB_PASSWORD; echo; export DB_PASSWORD
+python -m pytest                                 # expect "99 passed"
+
+# optional browser walkthrough: needs  pip install playwright && python -m playwright install chromium
+# NOTE: it rewrites the screenshots in docs/screenshots/
+python tests/browser_walkthrough.py              # expect "Passed: 13   Failed: 0   Total: 13"
 ```
 
-Both the application tests and the browser walkthrough read the same `DB_*` environment variables as the app. On Windows, run `run_tests.sh` from Git Bash or WSL. More detail is in `tests/README.md`; results are in `docs/TEST_REPORT.md`.
+The application tests and the browser walkthrough read the same `DB_*` environment variables as the app; `read -s` keeps the password off the screen and out of the shell history. On systems where root has a password, run the database tests with `MYSQL_CMD="mysql -u root -p"`. On Windows, run `run_tests.sh` from Git Bash or WSL. More detail is in `tests/README.md`; results are in `docs/TEST_REPORT.md`.
 
 ## 9. Reset the development database (destructive)
 
 `sql/10_reset_database.sql` runs `DROP DATABASE smart_lab_equipment_db`, permanently deleting everything in it. Nothing runs it automatically. Back up first, then rebuild with section 5:
 
 ```bash
-mysqldump -u root -p --routines smart_lab_equipment_db > backup.sql
-mysql -u root -p < sql/10_reset_database.sql
+sudo mysqldump --routines smart_lab_equipment_db > backup.sql   # other systems: mysqldump -u root -p …
+sudo mysql < sql/10_reset_database.sql                          # other systems: mysql -u root -p < …
 ```
 
 ## 10. Common errors
@@ -183,7 +222,9 @@ mysql -u root -p < sql/10_reset_database.sql
 |---|---|
 | `ModuleNotFoundError: No module named 'flask'` | Activate the virtual environment, then `pip install -r requirements.txt` |
 | App shows "Error 500 … Check that the MySQL server is running" | Start MySQL; check `DB_USER` / `DB_PASSWORD` in `.env` |
-| `Access denied for user` | Wrong credentials in `.env`, or the account lacks privileges (section 5) |
+| `Access denied for user 'root'@'localhost'` on Ubuntu | Root uses socket authentication: run `sudo mysql` instead of `mysql -u root -p` (section 5) |
+| `Access denied for user 'labadmin'…` | Wrong credentials in `.env`, or the account lacks privileges (section 5) |
+| `Error: Command '[…]/python3', '-m', 'ensurepip'…` when creating `.venv` | `sudo apt install python3-venv` |
 | `Address already in use` on port 5000 | Set `PORT=5001` in `.env` |
 | "The form has expired" | The session restarted; reload the page and submit again |
 | `PROCEDURE … does not exist` | Run `sql/11_…` and `sql/12_…` |
