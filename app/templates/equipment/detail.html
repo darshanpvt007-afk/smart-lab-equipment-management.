@@ -1,53 +1,129 @@
 {% extends "base.html" %}
-{% from "macros.html" import badge, delete_button with context %}
+{% from "macros.html" import badge, csrf, delete_button with context %}
 {% block title %}{{ item.serial_number }}{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{{ item.equipment_name }} <small>{{ item.serial_number }}</small></h1>
+  <div>
+    <p class="eyebrow"><span class="mono">{{ item.serial_number }}</span> {{ badge(item.availability_status) }}
+      {% if current and current.days_overdue > 0 %}<span class="pill pill-overdue">Overdue {{ current.days_overdue }} day{{ 's' if current.days_overdue != 1 }}</span>{% endif %}</p>
+    <h1>{{ item.equipment_name }} <span class="h1-serial mono">{{ item.serial_number }}</span></h1>
+  </div>
   <div class="actions">
     {% if item.availability_status == 'Available' %}
       <a class="btn btn-primary" href="{{ url_for('allocations.issue', equipment_id=item.equipment_id) }}">Issue</a>
+    {% elif current %}
+      <a class="btn btn-primary" href="{{ url_for('allocations.return_equipment', allocation_id=current.allocation_id) }}">Record return</a>
+    {% elif open_job and open_job.maintenance_status == 'In Progress' %}
+      <a class="btn btn-primary" href="{{ url_for('maintenance.complete', maintenance_id=open_job.maintenance_id) }}">Complete maintenance</a>
+    {% elif open_job %}
+      <form method="post" action="{{ url_for('maintenance.start', maintenance_id=open_job.maintenance_id) }}" class="inline">
+        {{ csrf() }}<button class="btn btn-primary" type="submit">Start maintenance</button>
+      </form>
     {% endif %}
     <a class="btn" href="{{ url_for('maintenance.schedule', equipment_id=item.equipment_id) }}">Schedule maintenance</a>
-    <a class="btn" href="{{ url_for('equipment.edit', equipment_id=item.equipment_id) }}">Edit</a>
+    <a class="btn" href="{{ url_for('equipment.edit', equipment_id=item.equipment_id) }}">Edit details</a>
     {{ delete_button(url_for('equipment.delete', equipment_id=item.equipment_id), 'this equipment') }}
   </div>
 </div>
 
-<dl class="details">
-  <dt>Availability</dt><dd>{{ badge(item.availability_status) }}</dd>
-  <dt>Condition</dt><dd>{{ item.equipment_condition }}</dd>
-  <dt>Category</dt><dd>{{ item.category_name }}</dd>
-  <dt>Laboratory</dt><dd>{{ item.lab_name }} ({{ item.lab_location }})</dd>
-  <dt>Purchase</dt><dd>{{ item.invoice_number }}, {{ item.purchase_date }}, {{ item.supplier_name }}</dd>
-</dl>
+{% if current %}
+  <div class="callout {{ 'callout-warn' if current.days_overdue > 0 else 'callout-info' }}">
+    <b>On loan to <a href="{{ url_for('students.detail', student_id=current.student_id) }}">{{ current.student_name }}</a></b>
+    ({{ current.register_number }}, {{ current.department }}).
+    Issued {{ current.allocation_date|dmy }} by {{ current.issued_by }} · due {{ current.expected_return_date|dmy }}
+    {% if current.days_overdue > 0 %}· <b>{{ current.days_overdue }} day{{ 's' if current.days_overdue != 1 }} overdue</b>{% endif %}
+  </div>
+{% elif open_job %}
+  <div class="callout callout-info">
+    <b>{{ open_job.maintenance_type }} {{ 'in progress' if open_job.maintenance_status == 'In Progress' else 'scheduled' }}</b>
+    · {{ open_job.maintenance_date|dmy }} · {{ open_job.performed_by }}{% if open_job.remarks %} · "{{ open_job.remarks }}"{% endif %}
+  </div>
+{% endif %}
 
-<h2>Allocation history</h2>
-<table>
-  <thead><tr><th>#</th><th>Student</th><th>Issued</th><th>Due</th><th>Status</th><th>Returned</th><th>Condition</th><th>Days late</th></tr></thead>
-  <tbody>
-  {% for a in allocations %}
-    <tr>
-      <td>{{ a.allocation_id }}</td><td>{{ a.student_name }} <small>{{ a.register_number }}</small></td>
-      <td>{{ a.allocation_date }}</td><td>{{ a.expected_return_date }}</td><td>{{ badge(a.allocation_status) }}</td>
-      <td>{{ a.return_date or '-' }}</td><td>{{ a.return_condition or '-' }}</td>
-      <td class="num">{{ a.days_late if a.days_late is not none else '-' }}</td>
-    </tr>
-  {% else %}<tr><td colspan="8" class="muted">Never allocated.</td></tr>{% endfor %}
-  </tbody>
-</table>
+<nav class="tabs" aria-label="Sections">
+  {% for key, label in [('overview', 'Overview'), ('loans', 'Loans (' ~ allocations|length ~ ')'), ('maintenance', 'Maintenance (' ~ jobs|length ~ ')')] %}
+    <a href="{{ url_for('equipment.detail', equipment_id=item.equipment_id, tab=None if key == 'overview' else key) }}"
+       class="{{ 'active' if tab == key }}" {{ 'aria-current=page' if tab == key }}>{{ label }}</a>
+  {% endfor %}
+</nav>
 
-<h2>Maintenance history</h2>
-<table>
-  <thead><tr><th>#</th><th>Date</th><th>Type</th><th>Status</th><th class="num">Cost</th><th>Staff</th><th>Remarks</th></tr></thead>
-  <tbody>
-  {% for m in jobs %}
-    <tr>
-      <td>{{ m.maintenance_id }}</td><td>{{ m.maintenance_date }}</td><td>{{ m.maintenance_type }}</td>
-      <td>{{ badge(m.maintenance_status) }}</td><td class="num">{{ m.maintenance_cost|money }}</td>
-      <td>{{ m.performed_by }}</td><td>{{ m.remarks or '' }}</td>
-    </tr>
-  {% else %}<tr><td colspan="7" class="muted">No maintenance recorded.</td></tr>{% endfor %}
-  </tbody>
-</table>
+{% if tab == 'overview' %}
+<div class="detail-grid">
+  <section class="panel">
+    <dl class="facts">
+      <dt>Category</dt><dd>{{ item.category_name }}</dd>
+      <dt>Condition</dt><dd>{{ item.equipment_condition }}</dd>
+      <dt>Laboratory</dt><dd>{{ item.lab_name }}<small>{{ item.lab_location }}</small></dd>
+      <dt>Supplier</dt><dd>{{ item.supplier_name }}</dd>
+      <dt>Purchase</dt><dd><span class="mono">{{ item.invoice_number }}</span><small>Received {{ item.purchase_date|dmy }}</small></dd>
+      <dt>Lifetime usage</dt>
+      <dd>{{ allocations|length }} loan{{ 's' if allocations|length != 1 }} ·
+          {{ jobs|length }} maintenance job{{ 's' if jobs|length != 1 }} · {{ spent|inr }} spent</dd>
+    </dl>
+  </section>
+
+  <section class="panel">
+    <header class="panel-head"><h2>Lifecycle</h2></header>
+    <ol class="timeline">
+      {% for ev in events %}
+        <li class="tl-{{ ev.kind }}">
+          <p>
+            {% if ev.kind == 'received' %}Received from {{ ev.person }}
+            {% elif ev.kind == 'issued' %}Issued to {{ ev.person }}
+            {% elif ev.kind == 'returned' %}Returned by {{ ev.person }} · {{ ev.detail }}
+            {% elif ev.kind == 'maint-completed' %}{{ ev.detail }} completed · {{ ev.cost|inr }}
+            {% elif ev.kind == 'maint-started' %}{{ ev.detail }} in progress
+            {% else %}{{ ev.detail }} scheduled{% endif %}
+          </p>
+          <small>
+            {% if ev.kind == 'maint-scheduled' %}planned for {% endif %}{{ ev.event_date|dmy }}
+            {% if ev.kind == 'received' %}· invoice {{ ev.detail }}
+            {% elif ev.kind == 'issued' %}· by {{ ev.staff }} · due {{ ev.detail|dmy }}
+            {% elif ev.staff %}· {{ ev.staff }}{% endif %}
+            {% if ev.note %}· "{{ ev.note }}"{% endif %}
+          </small>
+        </li>
+      {% endfor %}
+    </ol>
+  </section>
+</div>
+
+{% elif tab == 'loans' %}
+<section class="panel table-panel">
+  <table class="data">
+    <thead><tr><th>#</th><th>Student</th><th>Issued → due</th><th>Outcome</th><th class="num">Days late</th></tr></thead>
+    <tbody>
+    {% for a in allocations %}
+      <tr>
+        <td>{{ a.allocation_id }}</td>
+        <td><span class="strong">{{ a.student_name }}</span><small>{{ a.register_number }} · issued by {{ a.issued_by }}</small></td>
+        <td>{{ a.allocation_date|dmy(false) }} → {{ a.expected_return_date|dmy }}</td>
+        <td>{% if a.return_date %}{{ badge('Returned') }} <small>{{ a.return_date|dmy }} · {{ a.return_condition }}{% if a.return_remarks %} · "{{ a.return_remarks }}"{% endif %}</small>
+            {% else %}{{ badge(a.allocation_status) }}{% endif %}</td>
+        <td class="num">{{ a.days_late if a.days_late is not none else '-' }}</td>
+      </tr>
+    {% else %}<tr><td colspan="5" class="empty">Never issued.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% else %}
+<section class="panel table-panel">
+  <table class="data">
+    <thead><tr><th>#</th><th>Date</th><th>Type</th><th>Status</th><th>Performed by</th><th>Remarks</th><th class="num">Cost (₹)</th></tr></thead>
+    <tbody>
+    {% for m in jobs %}
+      <tr>
+        <td>{{ m.maintenance_id }}</td><td>{{ m.maintenance_date|dmy }}</td><td>{{ m.maintenance_type }}</td>
+        <td>{{ badge(m.maintenance_status) }}</td><td>{{ m.performed_by }}</td><td>{{ m.remarks or '' }}</td>
+        <td class="num">{{ m.maintenance_cost|money }}</td>
+      </tr>
+    {% else %}<tr><td colspan="7" class="empty">No maintenance recorded.</td></tr>{% endfor %}
+    </tbody>
+    {% if jobs %}<tfoot><tr><td colspan="6">Total spent on completed jobs</td><td class="num">{{ spent|money }}</td></tr></tfoot>{% endif %}
+  </table>
+</section>
+{% endif %}
+
+<p class="hint">Equipment with loan or maintenance history cannot be deleted; the database refuses it (ON DELETE RESTRICT).</p>
 {% endblock %}

@@ -224,14 +224,14 @@ Passed: 63   Failed: 0   Total: 63
 | Date of run | 2026-10-09 (UTC) |
 | Environment | Same sandbox: MySQL 8.0.46, Python 3.13, Flask 3.1.3, mysql-connector-python 26.7.0, pytest 9.1.1, Playwright 1.63 with Chromium |
 | Database suite | `bash tests/run_tests.sh`: **71 passed, 0 failed** (TC01–TC63 unchanged + TC64–TC71 for the maintenance procedures) |
-| Application suite | `python -m pytest`: **85 passed, 0 failed** (TA01–TA32; TA01, TA28 and TA32 are parameterised), about 41 s |
-| Browser walkthrough | `python tests/browser_walkthrough.py`: **10 passed, 0 failed** (TB01–TB10) |
+| Application suite | `python -m pytest`: **98 passed, 0 failed** (TA01–TA32 and TA40–TA47; TA01, TA28 and TA32 are parameterised), about 50 s |
+| Browser walkthrough | `python tests/browser_walkthrough.py`: **13 passed, 0 failed** (TB01–TB13), at 1440 × 900 and 390 × 844 |
 | Not executed | None |
 
 ## How the results were checked
 
-- **Mutation checks.** Each suite was run against deliberately broken code: the register-number pattern weakened to accept anything, and the CSRF check disabled. The matching tests (TA08, TA30) failed both times, and the code was then restored. A test suite that could never fail would prove nothing.
-- **Screenshots.** They were inspected by eye. This found and fixed a layout bug (table headers misaligned with their columns) and a wrapping navigation bar before the final run.
+- **Mutation checks.** Each suite was run against deliberately broken code: the register-number pattern weakened to accept anything, and the CSRF check disabled. The matching tests (TA08, TA30) failed both times, and the code was then restored. For the enterprise UI, the *Needs attention* view was narrowed to Unavailable only (TA40 failed) and the CSV formula guard was removed (TA44 failed); both were restored. A test suite that could never fail would prove nothing.
+- **Screenshots.** They were inspected by eye. This found and fixed a layout bug (table headers misaligned with their columns) and a wrapping navigation bar before the final run. For the enterprise UI, TB13 found that plain tables made phone-width pages scroll sideways by up to 461 px; tables now scroll inside themselves and every page was re-measured at 0 px.
 - **Demo script.** The 12 steps of `FACULTY_DEMONSTRATION.md` Part B were run in order through the app on a fresh database. This found one wrong expectation: step 11 shows 6 rows, not 4, after the earlier steps add a student and an allocation. The guide was corrected.
 
 ## Maintenance procedure tests (from the database run)
@@ -351,7 +351,10 @@ PASS  TB07  Duplicate register number shows a friendly error
 PASS  TB08  Maintenance job started; list shows all jobs
 PASS  TB09  Report page shows the SQL and its result
 PASS  TB10  Student detail with allocation history
-Passed: 10   Failed: 0   Total: 10
+PASS  TB11  Saved view tab and sortable column on the equipment list
+PASS  TB12  Issue form: quick due date, pre-issue checks and summary
+PASS  TB13  Phone width: menu opens from the toggle, no sideways scroll
+Passed: 13   Failed: 0   Total: 13
 ```
 
 ## Not tested in Review 3

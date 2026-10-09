@@ -1,12 +1,12 @@
 # Test Cases
 
-These are the test definitions, 166 in all, and every case is automated under the same ID. Results of the latest run are in `docs/TEST_REPORT.md`.
+These are the test definitions, 182 in all, and every case is automated under the same ID. Results of the latest run are in `docs/TEST_REPORT.md`.
 
 | IDs | Suite | Run with |
 |---|---|---|
 | TC01–TC71 | Database tests (A–H Review 2; I Review 3) | `bash tests/run_tests.sh` |
-| TA01–TA32 (85 test functions with parameters) | Web application tests (J) | `python -m pytest` |
-| TB01–TB10 | Browser walkthrough (K) | `python tests/browser_walkthrough.py` |
+| TA01–TA32, TA40–TA47 (98 test functions with parameters) | Web application tests (J) | `python -m pytest` |
+| TB01–TB13 | Browser walkthrough (K) | `python tests/browser_walkthrough.py` |
 
 The automated runner works on a separate database, `smart_lab_equipment_test`, rebuilt from the scripts. To try a case by hand, run its SQL in the `mysql` client against `smart_lab_equipment_db`:
 - Cases marked **(rolls back)** or **(rejected)** leave the data unchanged.
@@ -151,9 +151,9 @@ Before every test, the database `smart_lab_equipment_apptest` is rebuilt from sc
 
 | ID | Objective | Steps | Expected |
 |---|---|---|---|
-| TA01 | Every page loads | GET 35 URLs (lists, forms, details, filters) | HTTP 200 each |
+| TA01 | Every page loads | GET 40 URLs (lists, forms, details, filters, search, detail tabs) | HTTP 200 each |
 | TA02 | Unknown records | GET `/equipment/999`, `/students/999`, unknown report | HTTP 404 |
-| TA03 | Dashboard figures | GET `/` | 20 items, 11 available, 6 issued, 3 overdue, 2 under maintenance, 1 unavailable |
+| TA03 | Dashboard figures | GET `/` | KPI cards: 11 of 20 available (55%), 6 on loan (3 issued in last 7 days), 3 overdue (oldest 12 days, 50% of loans), 2 in progress · 2 scheduled (₹9,700 committed, ₹10,450 spent); overdue rows Vikram 12 d, Rohan 5 d, Aarav 2 d; loans per month 4/7/5/4; lab utilisation 33/50/40/0%; newest activity = allocation #20 |
 | TA04 | Equipment search | Text "oscilloscope", "NET-"; status, lab, category filters | 3, 4, 11, 6 items; multimeters available = 3 serials |
 | TA05 | Student search | Name, department, department + year | Matching register numbers only |
 | TA06 | SQL injection | Search for `' OR 1=1 --` and a `DROP TABLE` string | 0 rows; student table intact |
@@ -183,6 +183,14 @@ Before every test, the database `smart_lab_equipment_apptest` is rebuilt from sc
 | TA30 | CSRF | POST without token | HTTP 400; nothing saved |
 | TA31 | HTML escaping | Category named `<script>…` | Rendered escaped |
 | TA32 | Validator unit tests | `Form` helpers with good and bad input | Correct values and messages |
+| TA40 | Saved views | Equipment tabs All / Available / On loan / Needs attention; with `lab_id=4` | Counts 20/11/6/3; attention = 3 serials; with lab 4: 6/2/2/2; unknown view = all |
+| TA41 | Sorting whitelist | `sort=activity&dir=desc`, `sort=lab`, and `sort=equipment_id;DROP TABLE lab` | Newest activity first; lab order equals SQL ORDER BY; bad key falls back to default; lab table intact |
+| TA42 | Pagination | `per_page=10` pages 1, 2, 99; `per_page=7` | 10 + 10 distinct rows; "1–10 of 20", "11–20 of 20"; page 99 = last page; 7 not allowed (all 20 shown) |
+| TA43 | CSV export | `/equipment/export.csv?view=on_loan&sort=lab` | text/csv attachment `equipment-2026-10-10.csv`; header + 6 rows; OSC-DS1-0001 held by Aarav Menon due 2026-10-08 |
+| TA44 | CSV formula injection | Equipment named `=HYPERLINK(...)`, then export | Cell written as `'=HYPERLINK...` |
+| TA45 | Global search | `/search?q=menon`, `?q=OSC-DS1`, `?q=' OR 1=1 --` | 1 result; 2 equipment results; 0 results |
+| TA46 | Equipment detail tabs | `/equipment/1`, `?tab=loans`, `?tab=maintenance` | Overdue 2 days banner; lifecycle issued, completed, returned, issued, completed, received; "2 loans · 2 maintenance jobs · ₹4,250 spent"; 2 loan rows; total 4,250.00 |
+| TA47 | Sidebar counts | Any page | 20 equipment, 4 open jobs, 3 overdue, 10 students, 4 staff, 1 open purchase |
 
 ## K. Browser walkthrough (`python tests/browser_walkthrough.py`)
 
@@ -190,13 +198,16 @@ The walkthrough uses a real Chromium browser against a freshly built test databa
 
 | ID | Journey | Checked on screen |
 |---|---|---|
-| TB01 | Open the dashboard | Title, 3 overdue, overdue student listed |
+| TB01 | Open the dashboard | "Operations overview", Overdue KPI = 3, overdue student listed |
 | TB02 | Search "multimeter", Available | "2 item(s) found." |
 | TB03 | Equipment OSC-DS1-0001 | Maintenance remark in history |
-| TB04 | Issue with due date before issue date | Field error message |
+| TB04 | Issue with due date before issue date | Field error message; live date check also marked failed |
 | TB05 | Correct the date and issue | "Equipment issued (allocation #21)." |
 | TB06 | Return allocation 17 | "Return of OSC-DS1-0001 recorded." |
 | TB07 | Add student with existing register no. | Duplicate message |
 | TB08 | Start scheduled job for MCU-ARD-0009 | "now Under Maintenance" |
 | TB09 | Frequent-borrowers report | SQL with HAVING; 4 rows |
 | TB10 | Student 24BCE1012 | 4 history rows |
+| TB11 | Equipment list: click *Needs attention*, then sort by *Last activity* | Rows = tab count; column marked ascending |
+| TB12 | Issue form for DMM-17B-0005: pick student 10, click *2 weeks* | Due date 2026-10-24; 4 checks passed; summary shows the serial |
+| TB13 | Phone width (390 px): open the menu | Sidebar hidden, then shown by the toggle; no sideways page scroll |

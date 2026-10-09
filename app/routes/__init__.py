@@ -40,11 +40,6 @@ def received_purchase_options():
         "WHERE p.purchase_status = 'Received' ORDER BY p.purchase_date DESC")
 
 
-def student_options():
-    return db.query_all("SELECT student_id AS id, CONCAT(register_number, ' - ', student_name) AS name "
-                        "FROM student ORDER BY register_number")
-
-
 def staff_options():
     return db.query_all("SELECT staff_id AS id, CONCAT(staff_name, ' (', designation, ')') AS name "
                         "FROM lab_staff ORDER BY staff_name")

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge with context %}
+{% block title %}Search{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Search</h1>
+    <p class="page-sub">{% if q %}{{ total }} result{{ 's' if total != 1 }} for “{{ q }}”{% else %}Type in the search box at the top of any page.{% endif %}</p>
+  </div>
+</div>
+
+{% if q %}
+<div class="search-grid">
+  <section class="panel">
+    <header class="panel-head"><h2>Equipment</h2>
+      <a href="{{ url_for('equipment.list_equipment', q=q) }}">Open in Equipment →</a></header>
+    <ul class="result-list">
+      {% for e in results.equipment %}
+        <li><a class="strong" href="{{ url_for('equipment.detail', equipment_id=e.equipment_id) }}">{{ e.equipment_name }}</a>
+            {{ badge(e.availability_status) }}<small><span class="mono">{{ e.serial_number }}</span> · {{ e.lab_name }}</small></li>
+      {% else %}<li class="empty">No equipment matches.</li>{% endfor %}
+    </ul>
+  </section>
+  <section class="panel">
+    <header class="panel-head"><h2>Students</h2>
+      <a href="{{ url_for('students.list_students', q=q) }}">Open in Students →</a></header>
+    <ul class="result-list">
+      {% for s in results.students %}
+        <li><a class="strong" href="{{ url_for('students.detail', student_id=s.student_id) }}">{{ s.student_name }}</a>
+            <small>{{ s.register_number }} · {{ s.department }} · Year {{ s.year_of_study }}</small></li>
+      {% else %}<li class="empty">No students match.</li>{% endfor %}
+    </ul>
+  </section>
+  <section class="panel">
+    <header class="panel-head"><h2>Lab staff</h2></header>
+    <ul class="result-list">
+      {% for s in results.staff %}
+        <li><a class="strong" href="{{ url_for('staff.edit', staff_id=s.staff_id) }}">{{ s.staff_name }}</a><small>{{ s.designation }}</small></li>
+      {% else %}<li class="empty">No staff match.</li>{% endfor %}
+    </ul>
+  </section>
+  <section class="panel">
+    <header class="panel-head"><h2>Labs</h2></header>
+    <ul class="result-list">
+      {% for l in results.labs %}
+        <li><a class="strong" href="{{ url_for('equipment.list_equipment', lab_id=l.lab_id) }}">{{ l.lab_name }}</a><small>{{ l.location }}</small></li>
+      {% else %}<li class="empty">No labs match.</li>{% endfor %}
+    </ul>
+  </section>
+</div>
+{% endif %}
+{% endblock %}

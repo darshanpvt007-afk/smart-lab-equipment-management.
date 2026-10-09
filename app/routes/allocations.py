@@ -11,7 +11,7 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 
 from .. import db, today
 from ..validators import RETURN_CONDITIONS, Form
-from . import equipment_options, staff_options, student_options, try_db
+from . import staff_options, try_db
 
 bp = Blueprint("allocations", __name__, url_prefix="/allocations")
 
@@ -21,6 +21,9 @@ FILTERS = {
     "overdue": ("WHERE allocation_status = 'Issued' AND expected_return_date < %s", None),
     "returned": ("WHERE allocation_status = 'Returned'", ()),
 }
+
+
+QUICK_PICKS = ((3, "3 days"), (7, "1 week"), (14, "2 weeks"))
 
 
 @bp.route("/")
@@ -42,9 +45,26 @@ def list_allocations():
 
 
 def render_issue_form(item, errors=None, status=200):
+    # Extra facts per option feed the "pre-issue checks" panel in the browser;
+    # sp_allocate_equipment still re-checks everything when the form is saved.
+    equipment = db.query_all(
+        "SELECT e.equipment_id AS id, e.serial_number, e.equipment_name, e.equipment_condition, "
+        "       l.lab_name, CONCAT(e.serial_number, ' - ', e.equipment_name, ' (', l.lab_name, ')') AS name "
+        "FROM equipment e JOIN lab l ON l.lab_id = e.lab_id "
+        "WHERE e.availability_status = 'Available' ORDER BY e.equipment_name, e.serial_number")
+    students = db.query_all(
+        "SELECT s.student_id AS id, s.student_name, s.register_number, s.department, s.year_of_study, "
+        "       CONCAT(s.register_number, ' - ', s.student_name) AS name, "
+        "       COUNT(o.allocation_id) AS holding, "
+        "       COALESCE(SUM(o.expected_return_date < %s), 0) AS overdue "
+        "FROM student s LEFT JOIN vw_outstanding_allocations o ON o.student_id = s.student_id "
+        "GROUP BY s.student_id, s.student_name, s.register_number, s.department, s.year_of_study "
+        "ORDER BY s.register_number", (today(),))
+    unavailable = db.query_one(
+        "SELECT COUNT(*) AS n FROM equipment WHERE availability_status <> 'Available'")["n"]
     return render_template("allocations/issue.html", item=item, errors=errors or {},
-                           equipment=equipment_options(available_only=True),
-                           students=student_options(), staff=staff_options()), status
+                           equipment=equipment, students=students, staff=staff_options(),
+                           unavailable=unavailable, quick_picks=QUICK_PICKS), status
 
 
 @bp.route("/new", methods=["GET", "POST"])

@@ -2,19 +2,93 @@
 {% from "macros.html" import field, select, csrf with context %}
 {% block title %}Issue equipment{% endblock %}
 {% block content %}
-<h1>Issue equipment</h1>
-<form method="post" class="card">
+{% macro value(name) %}{{ item.get(name, '') if item else '' }}{% endmacro %}
+<div class="page-head">
+  <div>
+    <h1>Issue equipment</h1>
+    <p class="page-sub">Lend an available item to a student. The loan and the item's status are saved together.</p>
+  </div>
+</div>
+
+<form method="post" class="issue-form" id="issue-form" data-ctrl-enter>
   {{ csrf() }}
-  {{ select('equipment_id', 'Equipment (available only)', equipment, item, errors) }}
-  {{ select('student_id', 'Student', students, item, errors) }}
-  {{ select('staff_id', 'Issued by', staff, item, errors) }}
-  {{ field('allocation_date', 'Allocation date', item, errors, type='date', attrs='max=' ~ today.isoformat()) }}
-  {{ field('expected_return_date', 'Expected return date', item, errors, type='date') }}
-  <p class="muted">Saving calls <code>sp_allocate_equipment</code>: the allocation and the equipment's
-     new status are saved together in one transaction.</p>
-  <div class="actions">
-    <button type="submit" class="btn btn-primary">Issue</button>
+  <div class="form-layout">
+    <div class="form-main">
+      <section class="panel form-section">
+        <h2>Equipment</h2>
+        <div class="field {{ 'has-error' if errors.get('equipment_id') }}">
+          <label for="equipment_id">Available item <span class="req">*</span></label>
+          <select id="equipment_id" name="equipment_id" required>
+            <option value="">-- choose an available item --</option>
+            {% for e in equipment %}
+              <option value="{{ e.id }}" data-serial="{{ e.serial_number }}" data-condition="{{ e.equipment_condition }}"
+                      data-lab="{{ e.lab_name }}" {{ 'selected' if e.id|string == value('equipment_id')|string }}>{{ e.name }}</option>
+            {% endfor %}
+          </select>
+          <small class="help">Only items that are Available are listed ({{ equipment|length }}); {{ unavailable }} other item{{ 's' if unavailable != 1 }} are on loan, in maintenance or unavailable.</small>
+          {% if errors.get('equipment_id') %}<small class="error">{{ errors['equipment_id'] }}</small>{% endif %}
+        </div>
+      </section>
+
+      <section class="panel form-section">
+        <h2>Borrower</h2>
+        <div class="field {{ 'has-error' if errors.get('student_id') }}">
+          <label for="student_id">Student <span class="req">*</span></label>
+          <select id="student_id" name="student_id" required>
+            <option value="">-- choose a student --</option>
+            {% for s in students %}
+              <option value="{{ s.id }}" data-name="{{ s.student_name }}" data-holding="{{ s.holding }}" data-overdue="{{ s.overdue }}"
+                      data-meta="{{ s.register_number }} · {{ s.department }} · Year {{ s.year_of_study }}"
+                      {{ 'selected' if s.id|string == value('student_id')|string }}>{{ s.name }}</option>
+            {% endfor %}
+          </select>
+          {% if errors.get('student_id') %}<small class="error">{{ errors['student_id'] }}</small>{% endif %}
+        </div>
+        {{ select('staff_id', 'Issued by', staff, item, errors) }}
+      </section>
+
+      <section class="panel form-section">
+        <h2>Loan period</h2>
+        <div class="field-row">
+          {{ field('allocation_date', 'Issue date', item, errors, type='date', attrs='max=' ~ today.isoformat()) }}
+          {{ field('expected_return_date', 'Due date', item, errors, type='date') }}
+        </div>
+        <div class="quick-picks" role="group" aria-label="Quick due date">
+          <span class="muted">Quick pick:</span>
+          {% for days, label in quick_picks %}
+            <button type="button" class="chip" data-due-days="{{ days }}">{{ label }}</button>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+
+    <aside class="form-aside">
+      <section class="panel checks" aria-live="polite">
+        <h2>Pre-issue checks</h2>
+        <ul id="checks">
+          <li data-check="item"><b>Item chosen and available</b><small>Only Available items are offered</small></li>
+          <li data-check="condition"><b>Item is not damaged</b><small>Condition: -</small></li>
+          <li data-check="dates"><b>Due date is after the issue date</b><small>-</small></li>
+          <li data-check="student"><b>Student has no overdue loans</b><small>Choose a student</small></li>
+        </ul>
+        <p class="hint">These checks are a preview. When you save, <code>sp_allocate_equipment</code> locks the item,
+          re-checks it and records the loan in one transaction; if any step fails, nothing is saved.</p>
+      </section>
+      <section class="panel summary">
+        <h2>Summary</h2>
+        <dl class="facts compact">
+          <dt>Item</dt><dd id="sum-item">-</dd>
+          <dt>Student</dt><dd id="sum-student">-</dd>
+          <dt>Due</dt><dd id="sum-due">-</dd>
+        </dl>
+      </section>
+    </aside>
+  </div>
+
+  <div class="action-bar">
+    <span class="muted kbd-hint">Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to issue</span>
     <a class="btn btn-link" href="{{ url_for('allocations.list_allocations') }}">Cancel</a>
+    <button type="submit" class="btn btn-primary">Issue equipment</button>
   </div>
 </form>
 {% endblock %}

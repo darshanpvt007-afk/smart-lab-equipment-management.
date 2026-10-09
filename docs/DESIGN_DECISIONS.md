@@ -262,3 +262,17 @@ Two more rules are enforced in the app:
 | Cross-site scripting | Jinja escapes every value (TA31). |
 | Credentials | Credentials come from environment variables or the git-ignored `.env`; nothing is hard-coded. `SECRET_KEY` falls back to a random value per start. |
 | Authentication | Not implemented. The course does not require it, and it is listed as a next step. |
+
+## D-23 Enterprise user interface without new tables or dependencies
+
+The interface was redesigned after Review 3's first prototype (mockup first, then built). The redesign changes no table, view or procedure.
+
+| Choice | Reason |
+|---|---|
+| Activity timeline built from existing tables with `UNION ALL` (`app/activity.py`) | Purchase, allocation, return and maintenance rows already record every event, so an audit table would duplicate data (3NF, Review 2). Planned maintenance is left out of "last activity" because it has not happened yet. |
+| Sorting through a whitelist of ORDER BY expressions | A column name cannot be sent as a `%s` parameter, so `?sort=` selects one of fixed strings; anything else falls back to the default (TA41). |
+| Saved views and paging are URL parameters | Bookmarkable, work without JavaScript, testable with plain GET requests (TA40, TA42). |
+| CSV cells starting with `= + - @` are prefixed with `'` | Prevents spreadsheet formula injection when the export is opened in Excel (TA44). |
+| Badges keep the database terms (Allocated, Under Maintenance) | The screens match the schema and the SQL shown on the Reports page. |
+| No web fonts, CSS framework or JavaScript framework | Works offline in the lab; IBM Plex is used if installed, otherwise the system font. `app.js` only adds conveniences; every page works without it. |
+| Signed-in user shown as "Lab desk · No sign-in (prototype)" | The mockup showed a named user, but there is no login yet (D-22); the screen must not suggest otherwise. |
