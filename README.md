@@ -11,7 +11,7 @@ The system records a college's laboratories, equipment, categories, suppliers, p
 
 | Review | Requirement | Where |
 |---|---|---|
-| 2 | ER diagram converted into tables; primary and foreign keys; integrity constraints | `sql/02_create_tables.sql`, `docs/RELATIONAL_SCHEMA.md`, `docs/DESIGN_DECISIONS.md` |
+| 2 | ER diagram converted into tables; primary and foreign keys; integrity constraints | `docs/diagrams/ER_Chen.png` (Chen ER diagram), `sql/02_create_tables.sql`, `docs/RELATIONAL_SCHEMA.md`, `docs/DESIGN_DECISIONS.md` |
 | 2 | Sample data | `sql/03_insert_sample_data.sql` |
 | 2 | SELECT, WHERE, ORDER BY, GROUP BY, HAVING, aggregates, JOIN, subqueries | `sql/04`–`07`, `docs/SQL_QUERY_CATALOG.md` |
 | 2 | Views | `sql/08_create_views.sql` |
@@ -83,6 +83,7 @@ The system records a college's laboratories, equipment, categories, suppliers, p
     ├── RELATIONAL_SCHEMA.md, NORMALIZATION.md, SQL_QUERY_CATALOG.md
     ├── TROUBLESHOOTING.md
     ├── REVIEW2_IMPLEMENTATION_PLAN.md
+    ├── diagrams/                   ER diagram in Chen notation (PNG, PDF, SVG)
     └── screenshots/                captured by the browser walkthrough
 ```
 

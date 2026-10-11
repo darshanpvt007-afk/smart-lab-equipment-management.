@@ -2,6 +2,8 @@
 
 This schema converts the Review 1 ER diagram into 10 MySQL tables. The executable definition is in `sql/02_create_tables.sql`; this document describes the same schema in tabular form. All tables use the InnoDB engine and the `utf8mb4` character set, in the database `smart_lab_equipment_db`.
 
+The ER diagram in Chen notation (entities, attributes, relationships, cardinality and participation) is in `docs/diagrams/ER_Chen.png` (also `.pdf` and `.svg`).
+
 **Notation:** **PK** = primary key, **FK** = foreign key, **UQ** = unique, **NN** = NOT NULL, **AI** = AUTO_INCREMENT.
 
 ## Schema at a glance
