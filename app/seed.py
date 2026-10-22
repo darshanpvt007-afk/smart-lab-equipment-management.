@@ -51,12 +51,14 @@ def seed_accounts(out_path, reset=False):
         existing = db.query_one("SELECT user_id FROM app_user WHERE username = %s", (username,))
         staff_rows.append((username, name, role, staff["staff_id"] if staff else None, existing))
 
+    # A pending account (activation opened, no password yet) still needs a password.
     students = db.query_all("SELECT s.student_id, s.student_name, s.register_number, "
-                        "       a.student_id AS has_account "
+                        "       a.student_id IS NOT NULL AS has_account, "
+                        "       a.password_hash IS NOT NULL AS has_password "
                         "FROM student s LEFT JOIN student_account a ON a.student_id = s.student_id "
                         "ORDER BY s.register_number")
 
-    planned = [r for r in staff_rows if reset or not r[4]] + [s for s in students if reset or not s["has_account"]]
+    planned = [r for r in staff_rows if reset or not r[4]] + [s for s in students if reset or not s["has_password"]]
     summary = []
     if not planned:
         for username, name, role, _, _ in staff_rows:
@@ -85,7 +87,7 @@ def seed_accounts(out_path, reset=False):
             summary.append(("staff", username, name, auth.ROLES[role], action))
 
         for s in students:
-            if s["has_account"] and not reset:
+            if s["has_password"] and not reset:
                 summary.append(("student", s["register_number"], s["student_name"], "Student", "kept"))
                 continue
             password = generate_password(s["register_number"])
@@ -96,6 +98,7 @@ def seed_accounts(out_path, reset=False):
                 "  activated_at = NOW(), activation_expires_at = NULL, session_epoch = session_epoch + 1",
                 (s["student_id"], hashed, hashed))
             out.writerow(["student", s["register_number"], s["student_name"], "Student", password])
-            summary.append(("student", s["register_number"], s["student_name"], "Student",
-                            "password reset" if s["has_account"] else "created"))
+            action = ("password reset" if s["has_password"] else
+                      "activated" if s["has_account"] else "created")
+            summary.append(("student", s["register_number"], s["student_name"], "Student", action))
     return summary

@@ -294,6 +294,7 @@ Students 1 (Aarav, 24BCE1012) and 2 (Diya, 24BEC1045) have activated test accoun
 | TA94 | Generated passwords work | Sign in as darshan.s, kavitha.ramesh and 24BCE1012 with the generated passwords; one person's password for another account | Dashboard, dashboard, /my/; 401 |
 | TA95 | Safe re-run | Run again; reuse the same file; a file inside the project folder | "nothing changed", no file, hashes unchanged; both refused |
 | TA96 | Reset | `--reset --out <new file>` | New passwords, session_epoch + 1, old password refused, new one works |
+| TA97 | Pending students | Activation opened for all 10 students, student 10 already activated; run the command | 9 pending accounts get a password and can sign in; student 10 kept unchanged |
 
 ## P. Student portal migration (database, `tests/run_tests.sh`)
 
