@@ -13,6 +13,32 @@
     });
   }
 
+  // Light / dark theme switch (the saved choice is applied early by theme.js).
+  var root = document.documentElement;
+  function currentTheme() {
+    var set = root.getAttribute("data-theme");
+    if (set) { return set; }
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  document.querySelectorAll("[data-theme-toggle]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var next = currentTheme() === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      try { window.localStorage.setItem("smartlab-theme", next); } catch (e) { /* not saved */ }
+    });
+  });
+
+  // Toasts: dismiss button, and success messages fade away after a while.
+  document.querySelectorAll(".flash").forEach(function (box) {
+    var close = box.querySelector("[data-dismiss]");
+    function hide() {
+      box.classList.add("flash-hide");
+      window.setTimeout(function () { box.remove(); }, 250);
+    }
+    if (close) { close.addEventListener("click", hide); }
+    if (box.classList.contains("flash-success")) { window.setTimeout(hide, 8000); }
+  });
+
   // "/" focuses the global search (unless the user is typing in a field).
   document.addEventListener("keydown", function (e) {
     var tag = (e.target.tagName || "").toLowerCase();

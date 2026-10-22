@@ -1,10 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
+{% import "ui.html" as ui with context %}
 {% set total = totals.equipment or 0 %}
 {% set available = counts.get('Available', 0) %}
+{% set navc = nav_counts() %}
 <div class="page-head">
   <div>
+    <p class="eyebrow greeting">Welcome back, <b>{{ display_name }}</b> · {{ role_labels[current_user.role] }}</p>
     <h1>Operations overview</h1>
     <p class="page-sub">All labs ·
       {% if totals.overdue or totals.jobs_in_progress %}
@@ -13,64 +16,99 @@
     </p>
   </div>
   <div class="actions">
-    <a class="btn" href="{{ url_for('equipment.export_csv') }}">Export inventory</a>
-    {% if can('issue_return') %}<a class="btn btn-primary" href="{{ url_for('allocations.issue') }}">Issue equipment</a>{% endif %}
+    <a class="btn" href="{{ url_for('equipment.export_csv') }}">{{ ui.icon('download', 16) }}Export inventory</a>
+    {% if can('issue_return') %}<a class="btn btn-primary" href="{{ url_for('allocations.issue') }}">{{ ui.icon('plus', 16) }}Issue equipment</a>{% endif %}
   </div>
 </div>
 
+{# Shortcuts for what this role does most. #}
+<nav class="quick" aria-label="Quick actions">
+  {% if can('issue_return') %}
+  <a class="quick-tile" href="{{ url_for('requests.list_requests') }}">
+    <span class="quick-icon qi-violet">{{ ui.icon('inbox', 20) }}</span>
+    <span><b>Student requests</b><small>{{ navc.pending_requests or 'No' }} pending approval</small></span>
+  </a>
+  {% endif %}
+  {% if can('maintain') %}
+  <a class="quick-tile" href="{{ url_for('maintenance.schedule') }}">
+    <span class="quick-icon qi-amber">{{ ui.icon('wrench', 20) }}</span>
+    <span><b>Schedule maintenance</b><small>{{ totals.jobs_scheduled }} scheduled · {{ totals.jobs_in_progress }} in progress</small></span>
+  </a>
+  {% endif %}
+  {% if can('edit_equipment') %}
+  <a class="quick-tile" href="{{ url_for('equipment.create') }}">
+    <span class="quick-icon qi-teal">{{ ui.icon('box', 20) }}</span>
+    <span><b>Add equipment</b><small>{{ total }} items in the inventory</small></span>
+  </a>
+  {% endif %}
+  <a class="quick-tile" href="{{ url_for('reports.index') }}">
+    <span class="quick-icon qi-blue">{{ ui.icon('chart', 20) }}</span>
+    <span><b>Reports</b><small>Ready-made SQL reports</small></span>
+  </a>
+</nav>
+
 <section class="kpis" aria-label="Key figures">
-  <a class="kpi" href="{{ url_for('equipment.list_equipment', view='available') }}">
+  <a class="kpi kpi-teal" href="{{ url_for('equipment.list_equipment', view='available') }}">
+    <span class="kpi-icon">{{ ui.icon('box', 20) }}</span>
     <p class="kpi-label">Available now</p>
     <p class="kpi-value"><span class="kpi-n">{{ available }}</span> of {{ total }}</p>
     <span class="meter" aria-hidden="true"><span style="width: {{ (100 * available / total) if total else 0 }}%"></span></span>
     <p class="kpi-context">{{ ((100 * available / total) if total else 0)|round|int }}% of the inventory can be issued</p>
   </a>
-  <a class="kpi" href="{{ url_for('allocations.list_allocations', show='issued') }}">
+  <a class="kpi kpi-blue" href="{{ url_for('allocations.list_allocations', show='issued') }}">
+    <span class="kpi-icon">{{ ui.icon('swap', 20) }}</span>
     <p class="kpi-label">On loan</p>
     <p class="kpi-value"><span class="kpi-n">{{ totals.outstanding }}</span> items</p>
     <p class="kpi-context">{{ totals.issued_last_7_days }} issued in the last 7 days</p>
   </a>
-  <a class="kpi kpi-overdue {{ 'kpi-alert' if totals.overdue }}" href="{{ url_for('allocations.list_allocations', show='overdue') }}">
+  <a class="kpi kpi-overdue kpi-red {{ 'kpi-alert' if totals.overdue }}" href="{{ url_for('allocations.list_allocations', show='overdue') }}">
+    <span class="kpi-icon">{{ ui.icon('alert', 20) }}</span>
     <p class="kpi-label">Overdue</p>
     <p class="kpi-value"><span class="kpi-n">{{ totals.overdue }}</span> loans</p>
     <p class="kpi-context">{% if overdue %}Oldest {{ overdue[0].days_overdue }} days late · {{ (100 * totals.overdue / totals.outstanding)|round|int }}% of loans{% else %}Every loan is on time{% endif %}</p>
   </a>
-  <a class="kpi" href="{{ url_for('maintenance.list_jobs') }}">
+  <a class="kpi kpi-amber" href="{{ url_for('maintenance.list_jobs') }}">
+    <span class="kpi-icon">{{ ui.icon('wrench', 20) }}</span>
     <p class="kpi-label">Maintenance</p>
     <p class="kpi-value"><span class="kpi-n">{{ totals.jobs_in_progress }}</span> in progress · {{ totals.jobs_scheduled }} scheduled</p>
     <p class="kpi-context">{{ totals.cost_committed|inr }} committed · {{ totals.cost_spent|inr }} spent to date</p>
   </a>
 </section>
 
-<div class="dash-grid">
-  <section class="panel panel-wide">
-    <header class="panel-head">
-      <h2>Overdue loans</h2>
-      <a href="{{ url_for('allocations.list_allocations', show='overdue') }}">Open in Allocations →</a>
-    </header>
-    {% if overdue %}
-    <table class="data">
-      <thead><tr><th>Student</th><th>Equipment</th><th>Issued by</th><th>Due</th><th class="num">Late</th><th class="num">Action</th></tr></thead>
-      <tbody>
-      {% for r in overdue %}
-        <tr>
-          <td><a class="strong" href="{{ url_for('students.detail', student_id=r.student_id) }}">{{ r.student_name }}</a>
-              <small>{{ r.register_number }} · {{ r.department }}</small></td>
-          <td><a class="strong" href="{{ url_for('equipment.detail', equipment_id=r.equipment_id) }}">{{ r.equipment_name }}</a>
-              <small class="mono">{{ r.serial_number }}</small></td>
-          <td>{{ r.issued_by }}</td>
-          <td class="nowrap">{{ r.expected_return_date|dmy }}</td>
-          <td class="num"><span class="pill pill-overdue">{{ r.days_overdue }} d</span></td>
-          {% if can('issue_return') %}<td class="num"><a class="btn btn-small" href="{{ url_for('allocations.return_equipment', allocation_id=r.allocation_id) }}">Record return</a></td>{% endif %}
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<p class="empty">No overdue loans. Everything is back or still within its due date.</p>{% endif %}
-    {% if due_soon %}
-      <p class="panel-foot">Due in the next 4 days:
-        {% for d in due_soon %}{{ d.student_name }} ({{ d.expected_return_date|dmy(false) }}){{ ', ' if not loop.last }}{% endfor %}</p>
-    {% endif %}
+<div class="chart-row">
+  {# Donut: share of the inventory in each availability status. #}
+  {% set parts = [('Available', 'available', counts.get('Available', 0)),
+                  ('Allocated', 'allocated', counts.get('Allocated', 0)),
+                  ('Under maintenance', 'maintenance', counts.get('Under Maintenance', 0)),
+                  ('Unavailable', 'unavailable', counts.get('Unavailable', 0))] %}
+  {% set circ = 289.03 %}{# 2 * pi * 46 #}
+  {% set ns = namespace(offset=0) %}
+  <section class="panel">
+    <header class="panel-head"><h2>Inventory status</h2>
+      <a href="{{ url_for('equipment.list_equipment') }}">Equipment →</a></header>
+    <div class="donut-wrap">
+      <svg class="donut" viewBox="0 0 120 120" role="img"
+           aria-label="Inventory status: {% for label, key, n in parts %}{{ n }} {{ label|lower }}{{ ', ' if not loop.last }}{% endfor %}">
+        <circle class="donut-track" cx="60" cy="60" r="46"/>
+        <g transform="rotate(-90 60 60)">
+        {% for label, key, n in parts if n and total %}
+          {% set seg = circ * n / total %}
+          <circle class="donut-seg seg-{{ key }}" cx="60" cy="60" r="46"
+                  stroke-dasharray="{{ '%.2f'|format([seg - 2.5, 0.5]|max if n < total else seg) }} {{ circ }}"
+                  stroke-dashoffset="{{ '%.2f'|format(-ns.offset) }}"/>
+          {% set ns.offset = ns.offset + seg %}
+        {% endfor %}
+        </g>
+        <text x="60" y="58" class="donut-n">{{ total }}</text>
+        <text x="60" y="74" class="donut-l">items</text>
+      </svg>
+      <ul class="donut-legend">
+        {% for label, key, n in parts %}
+          <li><i class="sw sw-{{ key }}"></i><span>{{ label }}</span><b>{{ n }}</b>
+              <small>{{ ((100 * n / total) if total else 0)|round|int }}%</small></li>
+        {% endfor %}
+      </ul>
+    </div>
   </section>
 
   <section class="panel">
@@ -87,36 +125,85 @@
     <p class="panel-foot">{% if busiest.n %}{{ busiest.name }} was the busiest month, with {{ busiest.n }} loan{{ 's' if busiest.n != 1 }}.{% else %}No loans in this period.{% endif %}</p>
   </section>
 
-  <section class="panel panel-wide">
-    <header class="panel-head">
-      <h2>Lab utilisation</h2>
-      <span class="legend">
-        <i class="sw sw-available"></i>Available <i class="sw sw-allocated"></i>Allocated
-        <i class="sw sw-maintenance"></i>Under maintenance <i class="sw sw-unavailable"></i>Unavailable
-      </span>
-    </header>
-    <table class="data">
-      <thead><tr><th>Laboratory</th><th class="num">Items</th><th>Status mix</th><th class="num">On loan</th></tr></thead>
-      <tbody>
-      {% for l in labs %}
-        <tr>
-          <td><a class="strong" href="{{ url_for('equipment.list_equipment', lab_id=l.lab_id) }}">{{ l.lab_name }}</a><small>{{ l.location }}</small></td>
-          <td class="num">{{ l.item_count }}</td>
-          <td>
-            {% if l.item_count %}
-            <span class="stack" title="{{ l.available }} available, {{ l.on_loan }} allocated, {{ l.in_repair }} under maintenance, {{ l.unavailable }} unavailable">
-              {% for part, n in [('available', l.available), ('allocated', l.on_loan), ('maintenance', l.in_repair), ('unavailable', l.unavailable)] if n %}
-                <span class="sw-{{ part }}" style="width: {{ 100 * n / l.item_count }}%"></span>
-              {% endfor %}
-            </span>
-            {% else %}<span class="muted">No equipment</span>{% endif %}
-          </td>
-          <td class="num">{{ ((100 * l.on_loan / l.item_count) if l.item_count else 0)|round|int }}%</td>
-        </tr>
+  <section class="panel">
+    <header class="panel-head"><h2>Maintenance spend</h2>
+      <a href="{{ url_for('maintenance.list_jobs') }}">All jobs →</a></header>
+    {% if spend %}
+    <ul class="hbars">
+      {% for s in spend %}
+        <li>
+          <span class="hbar-head"><b>{{ s.kind }}</b><small>{{ s.jobs }} job{{ 's' if s.jobs != 1 }}</small><span class="hbar-val">{{ s.spent|inr }}</span></span>
+          <span class="hbar" aria-hidden="true"><span class="hbar-{{ loop.index }}" style="width: {{ (100 * s.spent / spend_max)|round|int }}%"></span></span>
+        </li>
       {% endfor %}
-      </tbody>
-    </table>
+    </ul>
+    <p class="panel-foot">Completed jobs only. {{ totals.cost_committed|inr }} is committed to jobs still in progress.</p>
+    {% else %}<p class="empty">No maintenance has been recorded yet.</p>{% endif %}
   </section>
+</div>
+
+<div class="dash-grid">
+  <div class="dash-col">
+    <section class="panel">
+      <header class="panel-head">
+        <h2>Overdue loans</h2>
+        <a href="{{ url_for('allocations.list_allocations', show='overdue') }}">Open in Allocations →</a>
+      </header>
+      {% if overdue %}
+      <table class="data">
+        <thead><tr><th>Student</th><th>Equipment</th><th>Due</th><th class="num">Late</th>{% if can('issue_return') %}<th class="num"><span class="sr-only">Action</span></th>{% endif %}</tr></thead>
+        <tbody>
+        {% for r in overdue %}
+          <tr>
+            <td><a class="strong" href="{{ url_for('students.detail', student_id=r.student_id) }}">{{ r.student_name }}</a>
+                <small>{{ r.register_number }} · {{ r.department }}</small></td>
+            <td><a class="strong" href="{{ url_for('equipment.detail', equipment_id=r.equipment_id) }}">{{ r.equipment_name }}</a>
+                <small class="mono">{{ r.serial_number }}</small></td>
+            <td class="nowrap">{{ r.expected_return_date|dmy }}<small>by {{ r.issued_by }}</small></td>
+            <td class="num"><span class="pill pill-overdue">{{ r.days_overdue }} d</span></td>
+            {% if can('issue_return') %}<td class="num"><a class="btn btn-small" href="{{ url_for('allocations.return_equipment', allocation_id=r.allocation_id) }}">Record return</a></td>{% endif %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<p class="empty">No overdue loans. Everything is back or still within its due date.</p>{% endif %}
+      {% if due_soon %}
+        <p class="panel-foot">Due in the next 4 days:
+          {% for d in due_soon %}{{ d.student_name }} ({{ d.expected_return_date|dmy(false) }}){{ ', ' if not loop.last }}{% endfor %}</p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <header class="panel-head">
+        <h2>Lab utilisation</h2>
+        <span class="legend">
+          <i class="sw sw-available"></i>Available <i class="sw sw-allocated"></i>Allocated
+          <i class="sw sw-maintenance"></i>Under maintenance <i class="sw sw-unavailable"></i>Unavailable
+        </span>
+      </header>
+      <table class="data">
+        <thead><tr><th>Laboratory</th><th class="num">Items</th><th>Status mix</th><th class="num">On loan</th></tr></thead>
+        <tbody>
+        {% for l in labs %}
+          <tr>
+            <td><a class="strong" href="{{ url_for('equipment.list_equipment', lab_id=l.lab_id) }}">{{ l.lab_name }}</a><small>{{ l.location }}</small></td>
+            <td class="num">{{ l.item_count }}</td>
+            <td>
+              {% if l.item_count %}
+              <span class="stack" title="{{ l.available }} available, {{ l.on_loan }} allocated, {{ l.in_repair }} under maintenance, {{ l.unavailable }} unavailable">
+                {% for part, n in [('available', l.available), ('allocated', l.on_loan), ('maintenance', l.in_repair), ('unavailable', l.unavailable)] if n %}
+                  <span class="sw-{{ part }}" style="width: {{ 100 * n / l.item_count }}%"></span>
+                {% endfor %}
+              </span>
+              {% else %}<span class="muted">No equipment</span>{% endif %}
+            </td>
+            <td class="num">{{ ((100 * l.on_loan / l.item_count) if l.item_count else 0)|round|int }}%</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
 
   <section class="panel">
     <header class="panel-head"><h2>Recent activity</h2></header>

@@ -2,7 +2,8 @@
 {% from "macros.html" import csrf with context %}
 {% block title %}Activate student account{% endblock %}
 {% block content %}
-<form method="post" class="panel login-card" autocomplete="off">
+<form method="post" class="login-card" autocomplete="off">
+  <p class="login-kicker">Students</p>
   <h1>Activate your account</h1>
   <p class="page-sub">Students only. Use the register number and e-mail address the lab has for you, then choose a password. This works once, after the lab has opened activation for you.</p>
   {{ csrf() }}

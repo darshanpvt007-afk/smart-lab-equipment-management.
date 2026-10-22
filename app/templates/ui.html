@@ -1,0 +1,33 @@
+{# Small presentational macros shared by every layout. #}
+
+{% macro icon(name, size=18, cls='') -%}
+<svg class="icon {{ cls }}" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="#i-{{ name }}"></use></svg>
+{%- endmacro %}
+
+{# Light / dark switch. Works without JavaScript too: it simply does nothing. #}
+{% macro theme_toggle() -%}
+<button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch between light and dark theme" title="Light / dark theme">
+  <span class="theme-icon-sun">{{ icon('sun') }}</span><span class="theme-icon-moon">{{ icon('moon') }}</span>
+</button>
+{%- endmacro %}
+
+{# Flash messages as toasts. The message text stays the element's only text
+   (the dismiss button is an icon with an aria-label). #}
+{% macro flashes() -%}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="toasts">
+    {% for category, message in messages %}
+      <div class="flash flash-{{ category }}" role="alert">
+        <span class="flash-icon">{{ icon('check' if category == 'success' else 'alert') }}</span><span class="flash-text">{{ message }}</span><button type="button" class="flash-close" data-dismiss aria-label="Dismiss">{{ icon('close', 16) }}</button>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}
+{%- endmacro %}
+
+{% macro brand_mark(size=18) -%}
+<span class="brand-mark" aria-hidden="true">{{ icon('flask', size) }}</span>
+{%- endmacro %}

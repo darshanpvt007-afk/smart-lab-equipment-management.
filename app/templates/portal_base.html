@@ -4,19 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}My equipment{% endblock %} · Smart Lab Equipment</title>
+  <meta name="color-scheme" content="light dark">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
 <body class="portal">
 {% from "macros.html" import csrf with context %}
+{% import "ui.html" as ui with context %}
+{% include "_icons.html" %}
 <header class="topbar">
   <a class="brand" href="{{ url_for('portal.home') }}">
-    <span class="brand-mark" aria-hidden="true">
-      <svg width="18" height="18" viewBox="0 0 18 18"><path d="M6.5 2h5M7.5 2v5L3 15a1 1 0 0 0 .9 1.5h10.2A1 1 0 0 0 15 15l-4.5-8V2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
-    </span>
+    {{ ui.brand_mark() }}
     <span class="brand-text">Smart Lab Equipment <span class="brand-sub">Student</span></span>
   </a>
-  <span class="date-chip">{{ 'Reference date' if reference_date_fixed else 'Today' }}: {{ today.isoformat() }}</span>
+  <span class="date-chip">{{ ui.icon('clock', 14) }}{{ 'Reference date' if reference_date_fixed else 'Today' }}: {{ today.isoformat() }}</span>
+  {{ ui.theme_toggle() }}
   {% if current_student %}
   <details class="user-menu">
     <summary class="user">
@@ -24,19 +27,15 @@
       <span class="user-text"><b>{{ current_student.student_name }}</b><small>{{ current_student.register_number }} · Student</small></span>
     </summary>
     <div class="user-pop">
-      <a href="{{ url_for('auth.change_password') }}">Change password</a>
+      <a href="{{ url_for('auth.change_password') }}">{{ ui.icon('lock', 16) }}Change password</a>
       <form method="post" action="{{ url_for('auth.logout') }}">{{ csrf() }}
-        <button type="submit" class="link-button">Sign out</button></form>
+        <button type="submit" class="link-button">{{ ui.icon('logout', 16) }}Sign out</button></form>
     </div>
   </details>
   {% endif %}
 </header>
 <main class="portal-main">
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% for category, message in messages %}
-      <div class="flash flash-{{ category }}" role="alert">{{ message }}</div>
-    {% endfor %}
-  {% endwith %}
+  {{ ui.flashes() }}
   {% block content %}{% endblock %}
   <footer>Smart Laboratory Equipment Management · Student portal</footer>
 </main>
