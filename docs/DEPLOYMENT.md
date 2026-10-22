@@ -214,18 +214,31 @@ EXIT;
 
 Keep this password for step 10.5. It is typed into the MySQL prompt, so it does not end up in your shell history.
 
-### 10.4 Create your administrator account in the online database
+### 10.4 Create the sign-in accounts in the online database
 
-Run `create-user` on your laptop, pointed at Aiven. Environment variables override `.env`, so your local settings are untouched:
+`flask seed-accounts` creates the ready-made accounts and generates a password for each one:
+
+| Who | Sign-in name | Role |
+|---|---|---|
+| Darshan S, Abishek Raj, Chaitanya Kumar | `darshan.s`, `abishek.raj`, `chaitanya.kumar` | Administrator |
+| Kavitha Ramesh, Priya Sundaram, Ramesh Kumar (lab teachers, linked to their lab staff records) | `kavitha.ramesh`, `priya.sundaram`, `ramesh.kumar` | Lab manager |
+| Every student in the `student` table (10 in the sample data) | their register number, e.g. `24BCE1012` | Student (ready to use, no activation needed) |
+
+The passwords are written only to `~/smartlab-credentials.csv` on your laptop (readable by you alone). They are not shown on screen, not logged and not stored in the repository; the database keeps only scrypt hashes. Run the command on your laptop, pointed at Aiven. Environment variables override `.env`, so your local settings are untouched:
 
 ```bash
 source .venv/bin/activate
 read -rp  "Aiven host: " DB_HOST; read -rp "Aiven port: " DB_PORT
 read -rsp "avnadmin password: " DB_PASSWORD; echo
 DB_HOST=$DB_HOST DB_PORT=$DB_PORT DB_USER=avnadmin DB_PASSWORD=$DB_PASSWORD \
-DB_SSL_CA=$HOME/aiven-ca.pem flask --app run create-user --username your.name --role admin
+DB_SSL_CA=$HOME/aiven-ca.pem flask --app run seed-accounts
 unset DB_HOST DB_PORT DB_PASSWORD
+column -s, -t ~/smartlab-credentials.csv      # view the list
 ```
+
+Give each person only their own line, then move the file somewhere safe or delete it. Everyone can change their password after signing in (**Change password** in the user menu). Running the command again leaves existing accounts unchanged; `--reset` gives all of them new passwords (written to a new file named with `--out`) and signs them out. `create-user` still works for any extra account.
+
+The same command works on your local database: run `flask --app run seed-accounts` without the `DB_…` variables.
 
 ### 10.5 Create the website (Render)
 

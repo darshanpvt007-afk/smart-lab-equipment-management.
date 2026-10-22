@@ -172,6 +172,38 @@ def create_app(test_config=None):
         auth.insert_user(username, role, password, staff_id)
         click.echo(f"Created account {username} with role {role}.")
 
+    @app.cli.command("seed-accounts")
+    @click.option("--out", "out_path", type=click.Path(dir_okay=False),
+                  default=lambda: os.path.join(os.path.expanduser("~"), "smartlab-credentials.csv"),
+                  show_default="~/smartlab-credentials.csv",
+                  help="Private file that receives the generated passwords (must not exist yet).")
+    @click.option("--reset", is_flag=True,
+                  help="Also give EXISTING accounts a new password (they are signed out).")
+    def seed_accounts_command(out_path, reset):
+        """Create the ready-made accounts: 3 administrators, 3 lab teachers and
+        one account per student. Passwords are generated, written only to the
+        --out file (permissions 600) and never shown here."""
+        from . import seed
+        out_path = os.path.abspath(out_path)
+        if os.path.exists(out_path):
+            raise click.ClickException(f"{out_path} already exists; move it away or pass --out.")
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        try:
+            inside_repo = os.path.commonpath([out_path, repo]) == repo
+        except ValueError:                      # different drives on Windows
+            inside_repo = False
+        if inside_repo:
+            raise click.ClickException("Write the credentials file outside the project folder, "
+                                       "so it can never be committed.")
+        summary = seed.seed_accounts(out_path, reset=reset)
+        for kind, login, name, role, action in summary:
+            click.echo(f"{action:15} {login:17} {name:18} {role}")
+        if os.path.exists(out_path):
+            click.echo(f"\nPasswords saved to {out_path} (readable only by you). "
+                       "Hand each person their own line, then delete or move the file.")
+        else:
+            click.echo("\nAll accounts already existed; nothing changed (use --reset for new passwords).")
+
     # ---- values available in every template ----
     @app.context_processor
     def template_globals():

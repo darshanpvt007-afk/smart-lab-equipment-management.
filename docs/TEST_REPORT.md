@@ -445,3 +445,18 @@ Passed: 13   Failed: 0   Total: 13
 **Found while building.** MySQL 8.0.46 refused the first version of migration 15 (error 3823): `allocation_id` was used in a CHECK and in a foreign key with `ON UPDATE CASCADE`. The key now uses `ON UPDATE RESTRICT`, since allocation ids never change.
 
 **Not tested.** Activation over e-mail links (not implemented); many students requesting the same item at the same time beyond the database UNIQUE index (TC82).
+
+## Ready-made accounts (`flask seed-accounts`) and Render deployment files
+
+| Item | Result |
+|---|---|
+| Date of run | 2026-10-22 (UTC) |
+| Database suite | **83 passed, 0 failed** (unchanged) |
+| Application suite | **155 passed, 0 failed** (adds TA93–TA96 and a password-rule check for 200 generated passwords) |
+| Development database | Not touched; the suites use their own test databases |
+
+**Mutation check.** With the credentials file created with permissions 644 instead of 600, TA93 failed as expected.
+
+**Production start.** gunicorn was started with the settings from `render.yaml` (`APP_ENV=production`, generated-style `SECRET_KEY`, `TRUST_PROXY=1`, one worker): it started, `/healthz` answered 503 (no database in that check, as expected), the sign-in page answered 200, and the log contained no setting values.
+
+**Not tested.** The real Aiven database and the Render service (they do not exist yet); the TLS connection to Aiven is the same code path as before (`DB_SSL_CA`).

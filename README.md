@@ -21,7 +21,7 @@ The system records a college's laboratories, equipment, categories, suppliers, p
 | 3 | Search and retrieval | Equipment and student search and filters; detail pages with full history |
 | 3 | Important SQL queries through the application | Reports page (`app/routes/reports.py`), dashboard, issue/return/maintenance workflows calling stored procedures |
 | 3 | Input validation | `app/validators.py` and HTML form attributes; database constraints as the final guard |
-| 3 | Test cases | `tests/` (database, application and browser tests: 252 in total) |
+| 3 | Test cases | `tests/` (database, application and browser tests: 257 in total) |
 | 3 | Final database | `sql/01`–`12` (`sql/12_maintenance_procedures.sql` is new in Review 3) |
 | 3 | Final report and presentation | Delivered separately (see `docs/REVIEW3_IMPLEMENTATION.md`) |
 | Deployment | Sign-in, roles, web security, least-privilege database accounts, production server, backups | `docs/SECURITY.md`, `docs/DEPLOYMENT.md`, `app/auth.py`, `sql/13_app_users.sql` |
@@ -166,6 +166,8 @@ pip install -r requirements.txt
 cp .env.example .env                 # Windows: copy .env.example .env
 nano .env                            # set DB_USER=labadmin, DB_PASSWORD, SECRET_KEY
 flask --app run create-user --username your.name --role admin   # first account; asks for a password (12+ characters)
+# or create all the team, lab-teacher and student accounts at once (passwords go to ~/smartlab-credentials.csv):
+flask --app run seed-accounts
 python run.py
 ```
 
@@ -225,7 +227,7 @@ MYSQL_CMD="sudo mysql" bash tests/run_tests.sh   # expect "Passed: 83   Failed: 
 # application tests, as labadmin (needs the test-database grants from section 5)
 export DB_USER=labadmin
 read -rsp "MySQL password for labadmin: " DB_PASSWORD; echo; export DB_PASSWORD
-python -m pytest                                 # expect "150 passed"
+python -m pytest                                 # expect "155 passed"
 
 # optional browser walkthrough: needs  pip install playwright && python -m playwright install chromium
 # NOTE: it rewrites the screenshots in docs/screenshots/
