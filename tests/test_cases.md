@@ -290,6 +290,10 @@ Students 1 (Aarav, 24BCE1012) and 2 (Diya, 24BEC1045) have activated test accoun
 | TA90 | Student throttling | 5 wrong passwords for 24BCE1012 | 6th attempt 429 |
 | TA91 | No collisions | Staff account named `24bce1012` | Refused |
 | TA92 | Student password change | Change on one device | Other session signed out |
+| TA93 | Ready-made accounts | `flask seed-accounts --out <tmp file>` | 3 admins, 3 lab managers linked to staff 4, 2, 1, 10 active student accounts; file has 16 rows and permissions 600; no password in the output or in the stored hashes |
+| TA94 | Generated passwords work | Sign in as darshan.s, kavitha.ramesh and 24BCE1012 with the generated passwords; one person's password for another account | Dashboard, dashboard, /my/; 401 |
+| TA95 | Safe re-run | Run again; reuse the same file; a file inside the project folder | "nothing changed", no file, hashes unchanged; both refused |
+| TA96 | Reset | `--reset --out <new file>` | New passwords, session_epoch + 1, old password refused, new one works |
 
 ## P. Student portal migration (database, `tests/run_tests.sh`)
 

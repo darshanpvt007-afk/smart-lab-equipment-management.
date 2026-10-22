@@ -1,0 +1,40 @@
+# Render Blueprint for the web application (free web service).
+# The MySQL database is hosted separately (Aiven free plan); see
+# docs/DEPLOYMENT.md section 10 for the step-by-step setup.
+#
+# Values marked "sync: false" are secrets: Render asks for them when the
+# Blueprint is first created. They are never stored in this file.
+services:
+  - type: web
+    name: smart-lab-equipment
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --config gunicorn.conf.py wsgi:app
+    healthCheckPath: /healthz
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true          # random value created by Render
+      - key: TRUST_PROXY
+        value: "1"                   # Render's HTTPS proxy sits in front of the app
+      - key: WEB_CONCURRENCY
+        value: "1"                   # free instance has 512 MB RAM
+      - key: GUNICORN_THREADS
+        value: "4"
+      # Fixed "today" so the demo matches the sample data. Delete it for real use.
+      - key: APP_REFERENCE_DATE
+        value: "2026-10-10"
+      - key: DB_NAME
+        value: smart_lab_equipment_db
+      - key: DB_SSL_CA
+        value: /etc/secrets/aiven-ca.pem   # uploaded as a Secret File
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false                  # smartlab_app, never avnadmin
+      - key: DB_PASSWORD
+        sync: false

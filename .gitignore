@@ -7,5 +7,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
+# Generated sign-in passwords (flask seed-accounts); never commit
+smartlab-credentials*.csv
+
 # Test / screenshot scratch output
 tests/output/
