@@ -19,7 +19,7 @@ Checked in October 2026 from provider pages and third-party trackers. Free tiers
 - **If examiners must open it remotely**, use **B**. It costs nothing, but you should open the site a minute before the demo so the web service wakes up. Also check that the Aiven database is powered on.
 - **For anything longer-lived**, use **C** or **D**.
 
-Before choosing B or C, confirm that the provider allows `CREATE PROCEDURE` and CHECK constraints (MySQL 8.0.16+) by running `sql/01`–`13` against a trial database.
+Step-by-step instructions for option B are in section 10. Before choosing B or C, confirm that the provider allows `CREATE PROCEDURE` and CHECK constraints (MySQL 8.0.16+) by running `sql/01`–`13` against a trial database.
 
 Sources: [Render pricing](https://render.com/pricing), [Render free tier notes](https://livemy.app/blog/render-pricing), [Aiven MySQL free tier](https://aiven.io/docs/products/mysql/concepts/mysql-free-tier), [Aiven free plan](https://aiven.io/docs/platform/concepts/free-plan), [Railway pricing](https://railway.com/pricing), [PythonAnywhere free accounts](https://help.pythonanywhere.com/pages/FreeAccountsFeatures/).
 
@@ -154,3 +154,102 @@ Everything added for deployment is additive:
 - The database accounts can be removed with `DROP USER`.
 
 No existing table, column or row was changed.
+
+## 10. Step by step: Render (free) + Aiven MySQL (free)
+
+This is option B from section 1. It costs nothing, but the site sleeps after 15 minutes without visitors (the first page then takes about a minute), and Aiven may power off a free database that is not used. Open the site a few minutes before a demo.
+
+You need a GitHub account (this repository), an Aiven account and a Render account. Both providers offer sign-in with GitHub or e-mail; neither free plan should ask for a card. If one does, stop: that is a paid plan.
+
+### 10.1 Create the database (Aiven)
+
+1. Sign in at <https://console.aiven.io>, choose **Create service → MySQL → Free plan**, pick a region close to you (and to the Render region you will choose) and name it `smartlab-db`.
+2. Wait until the service shows **Running**. On its **Overview** page note the **Host**, **Port**, **User** (`avnadmin`) and **Password**, and click **Download CA certificate**. Save the file as `~/aiven-ca.pem`.
+3. On your laptop, put the connection details in a private file instead of typing the password on the command line:
+
+   ```bash
+   nano ~/.aiven.cnf
+   ```
+   ```ini
+   [client]
+   host=YOUR-HOST.aivencloud.com
+   port=YOUR-PORT
+   user=avnadmin
+   password=YOUR-AVNADMIN-PASSWORD
+   ssl-mode=VERIFY_IDENTITY
+   ssl-ca=/home/YOUR-LINUX-USER/aiven-ca.pem
+   ```
+   ```bash
+   chmod 600 ~/.aiven.cnf
+   mysql --defaults-extra-file=~/.aiven.cnf -e "SELECT VERSION();"     # should print 8.0.x
+   ```
+
+### 10.2 Build the schema and load the data
+
+```bash
+cd ~/smart-lab-equipment-management.
+git pull
+for f in 01_create_database 02_create_tables 03_insert_sample_data 08_create_views \
+         11_transaction_procedures 12_maintenance_procedures 13_app_users 15_student_portal; do
+  echo "== $f"; mysql --defaults-extra-file=~/.aiven.cnf < sql/$f.sql || break
+done
+```
+
+Leave out `03_insert_sample_data` for an empty inventory. Aiven enforces `sql_require_primary_key`; every table in this project has a primary key, so no change is needed.
+
+### 10.3 Create the runtime account
+
+The website must not use `avnadmin`. Generate a password, then create a least-privilege account (same rights as `smartlab_app` in section 2, but allowed from any host, because Render's address is not fixed):
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(24))"     # copy the output
+mysql --defaults-extra-file=~/.aiven.cnf
+```
+```sql
+CREATE USER 'smartlab_app'@'%' IDENTIFIED BY 'PASTE-THE-GENERATED-PASSWORD';
+GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON smart_lab_equipment_db.* TO 'smartlab_app'@'%';
+ALTER USER 'smartlab_app'@'%' WITH MAX_USER_CONNECTIONS 20;
+EXIT;
+```
+
+Keep this password for step 10.5. It is typed into the MySQL prompt, so it does not end up in your shell history.
+
+### 10.4 Create your administrator account in the online database
+
+Run `create-user` on your laptop, pointed at Aiven. Environment variables override `.env`, so your local settings are untouched:
+
+```bash
+source .venv/bin/activate
+read -rp  "Aiven host: " DB_HOST; read -rp "Aiven port: " DB_PORT
+read -rsp "avnadmin password: " DB_PASSWORD; echo
+DB_HOST=$DB_HOST DB_PORT=$DB_PORT DB_USER=avnadmin DB_PASSWORD=$DB_PASSWORD \
+DB_SSL_CA=$HOME/aiven-ca.pem flask --app run create-user --username your.name --role admin
+unset DB_HOST DB_PORT DB_PASSWORD
+```
+
+### 10.5 Create the website (Render)
+
+1. Sign in at <https://dashboard.render.com> with GitHub and allow Render to read this repository.
+2. Choose **New → Blueprint**, select this repository and the `main` branch. Render reads `render.yaml` and asks for four values:
+   - `DB_HOST` and `DB_PORT`: from Aiven
+   - `DB_USER`: `smartlab_app`
+   - `DB_PASSWORD`: the password from step 10.3
+3. Open the new service **smart-lab-equipment → Environment → Secret Files**, add a file named `aiven-ca.pem` and paste the contents of `~/aiven-ca.pem` (`cat ~/aiven-ca.pem`). Render places it at `/etc/secrets/aiven-ca.pem`, which is what `DB_SSL_CA` points to.
+4. Click **Manual Deploy → Deploy latest commit**. The first deploy may fail before the Secret File exists; that is expected.
+5. When the log shows gunicorn listening, open `https://<your-service>.onrender.com/healthz`. It should show `{"status":"ok"}`. Then open the site and sign in with the account from step 10.4.
+
+### 10.6 If something goes wrong
+
+| Symptom (Render log or page) | Cause and fix |
+|---|---|
+| `Refusing to start in production: …` | A setting is missing; the message names it. Check **Environment** |
+| `/healthz` shows `{"status":"unavailable"}` | The app cannot reach MySQL: wrong host, port, user or password; the Secret File is missing; or the Aiven service is powered off (power it on in the Aiven console) |
+| Build fails on the Python version | Change `.python-version` to an exact version Render lists, e.g. `3.13.5` |
+| First page takes about a minute | Normal on the free plan after 15 minutes idle |
+
+### 10.7 Keeping it safe
+
+- Never paste `avnadmin` or `smartlab_app` passwords into chat, code or GitHub. `~/.aiven.cnf` stays on your laptop (`chmod 600`).
+- The sample data is fictional, so a public demo exposes no real person. Before entering real student data, read docs/SECURITY.md and remove `APP_REFERENCE_DATE`.
+- Do not open student self-activation (**Users → Student sign-in**) on the public site unless you need it for the demo; see the self-activation risk in docs/SECURITY.md section 6.
+- Back up before changing anything: `mysqldump --defaults-extra-file=~/.aiven.cnf --single-transaction --routines --set-gtid-purged=OFF smart_lab_equipment_db > backup.sql`.
