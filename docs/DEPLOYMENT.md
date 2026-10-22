@@ -236,7 +236,7 @@ unset DB_HOST DB_PORT DB_PASSWORD
 column -s, -t ~/smartlab-credentials.csv      # view the list
 ```
 
-Give each person only their own line, then move the file somewhere safe or delete it. Everyone can change their password after signing in (**Change password** in the user menu). Running the command again leaves existing accounts unchanged; `--reset` gives all of them new passwords (written to a new file named with `--out`) and signs them out. `create-user` still works for any extra account.
+Give each person only their own line, then move the file somewhere safe or delete it. Everyone can change their password after signing in (**Change password** in the user menu). Student accounts that are still waiting for activation also get a password. Running the command again leaves existing accounts unchanged; `--reset` gives all of them new passwords (written to a new file named with `--out`) and signs them out. `create-user` still works for any extra account.
 
 The same command works on your local database: run `flask --app run seed-accounts` without the `DB_…` variables.
 

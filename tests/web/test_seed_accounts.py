@@ -87,3 +87,22 @@ def test_generated_passwords_pass_the_password_rules():
     from app import auth
     for _ in range(200):
         assert auth.password_problem(seed.generate_password("darshan.s"), "darshan.s") is None
+
+
+def test_ta97_pending_student_accounts_get_a_password(app, sql, password_hash, tmp_path):
+    # Activation opened for everyone earlier; student 10 has already chosen a password.
+    sql("INSERT INTO student_account (student_id, activation_expires_at) "
+        "SELECT student_id, NOW() + INTERVAL 14 DAY FROM student")
+    sql("UPDATE student_account SET password_hash = %s, activated_at = NOW(), "
+        "activation_expires_at = NULL WHERE student_id = 10", (password_hash,))
+    out = tmp_path / "credentials.csv"
+    result = run(app, "--out", str(out))
+    assert result.exit_code == 0, result.output
+    creds = read_credentials(out)
+    assert len(creds) == 6 + 9 and "26BEC1062" not in creds          # student 10 kept
+    assert result.output.count("activated") == 9
+    assert sql("SELECT COUNT(*) AS n FROM student_account WHERE password_hash IS NOT NULL "
+               "AND activation_expires_at IS NULL")[0]["n"] == 10
+    assert sql("SELECT password_hash FROM student_account WHERE student_id = 10")[0]["password_hash"] == password_hash
+    response = sign_in(app, "24BCE1012", creds["24BCE1012"]["password"])
+    assert response.status_code == 302 and response.headers["Location"] == "/my/"
