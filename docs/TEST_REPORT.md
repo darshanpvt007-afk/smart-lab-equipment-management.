@@ -460,3 +460,17 @@ Passed: 13   Failed: 0   Total: 13
 **Production start.** gunicorn was started with the settings from `render.yaml` (`APP_ENV=production`, generated-style `SECRET_KEY`, `TRUST_PROXY=1`, one worker): it started, `/healthz` answered 503 (no database in that check, as expected), the sign-in page answered 200, and the log contained no setting values.
 
 **Not tested.** The real Aiven database and the Render service (they do not exist yet); the TLS connection to Aiven is the same code path as before (`DB_SSL_CA`).
+
+## Front-end redesign (modern theme, dark mode, new sign-in page, dashboard charts)
+
+| Item | Result |
+|---|---|
+| Date of run | 2026-10-22 (UTC) |
+| Application suite | **156 passed, 0 failed** (unchanged tests; markup the tests rely on was kept) |
+| Browser walkthrough | **19 passed, 0 failed**, run in a scratch copy (committed screenshots not overwritten) |
+| Phone width (390 px) | No sideways scrolling on 10 pages checked (dashboard, lists, forms, detail, reports, users, requests) |
+| Dark mode | Follows the system setting; the top-bar switch overrides it and is remembered after reload |
+
+**Found while testing.** The first walkthrough run failed TB13: the dashboard scrolled sideways by about 200 px at phone width. A visually hidden table label (`.sr-only`, absolutely positioned) was placed relative to the page instead of its scrolling panel. Panels are now positioned containers; TB13 passes.
+
+**Security.** No inline scripts were added; the theme is applied by `static/theme.js`. The Inter font is served from the app itself (SIL Open Font License, `app/static/fonts/OFL-Inter.txt`), so the Content-Security-Policy is unchanged.

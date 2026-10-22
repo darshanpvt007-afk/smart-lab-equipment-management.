@@ -4,10 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Smart Lab{% endblock %} · Smart Lab Equipment</title>
+  <meta name="color-scheme" content="light dark">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
 <body>
+{% import "ui.html" as ui with context %}
+{% include "_icons.html" %}
 {% set ep = request.endpoint or '' %}
 {% set bp = ep.split('.')[0] %}
 {% set navc = nav_counts() %}
@@ -30,23 +34,22 @@
 
 <header class="topbar">
   <button class="nav-toggle" type="button" aria-label="Show menu" aria-controls="sidebar" aria-expanded="false">
-    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    {{ ui.icon('menu', 20) }}
   </button>
   <a class="brand" href="{{ url_for('dashboard.index') }}">
-    <span class="brand-mark" aria-hidden="true">
-      <svg width="18" height="18" viewBox="0 0 18 18"><path d="M6.5 2h5M7.5 2v5L3 15a1 1 0 0 0 .9 1.5h10.2A1 1 0 0 0 15 15l-4.5-8V2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
-    </span>
+    {{ ui.brand_mark() }}
     <span class="brand-text">Smart Lab Equipment <span class="brand-sub">Management</span></span>
   </a>
   <form class="global-search" method="get" action="{{ url_for('dashboard.search') }}" role="search">
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    {{ ui.icon('search', 17) }}
     <input type="search" name="q" id="global-search" placeholder="Search equipment, students, serial or register no."
            aria-label="Search everything" value="{{ request.args.get('q', '') if ep == 'dashboard.search' }}">
     <kbd title="Press / to search">/</kbd>
   </form>
   <span class="date-chip" title="{{ 'Fixed reference date (APP_REFERENCE_DATE)' if reference_date_fixed else 'Current date' }}">
-    {{ 'Reference date' if reference_date_fixed else 'Today' }}: {{ today.isoformat() }}
+    {{ ui.icon('clock', 14) }}{{ 'Reference date' if reference_date_fixed else 'Today' }}: {{ today.isoformat() }}
   </span>
+  {{ ui.theme_toggle() }}
   {% if current_user %}
   <details class="user-menu">
     <summary class="user">
@@ -54,10 +57,10 @@
       <span class="user-text"><b>{{ current_user.username }}</b><small>{{ role_labels[current_user.role] }}</small></span>
     </summary>
     <div class="user-pop">
-      <a href="{{ url_for('auth.change_password') }}">Change password</a>
+      <a href="{{ url_for('auth.change_password') }}">{{ ui.icon('lock', 16) }}Change password</a>
       <form method="post" action="{{ url_for('auth.logout') }}">
         {% from "macros.html" import csrf with context %}{{ csrf() }}
-        <button type="submit" class="link-button">Sign out</button>
+        <button type="submit" class="link-button">{{ ui.icon('logout', 16) }}Sign out</button>
       </form>
     </div>
   </details>
@@ -66,38 +69,38 @@
 
 <div class="shell">
   <nav class="sidebar" id="sidebar" aria-label="Main"><div class="sidebar-inner">
-    <a href="{{ url_for('dashboard.index') }}" class="nav-item {{ 'active' if ep == 'dashboard.index' }}">Dashboard</a>
+    <a href="{{ url_for('dashboard.index') }}" class="nav-item {{ 'active' if ep == 'dashboard.index' }}"><span class="nav-label">{{ ui.icon('dashboard') }}Dashboard</span></a>
 
     <p class="nav-group">Inventory</p>
     <a href="{{ url_for('equipment.list_equipment') }}" class="nav-item {{ 'active' if bp == 'equipment' }}">
-      Equipment{% if navc.equipment is defined %}<span class="nav-count">{{ navc.equipment }}</span>{% endif %}</a>
+      <span class="nav-label">{{ ui.icon('box') }}Equipment</span>{% if navc.equipment is defined %}<span class="nav-count">{{ navc.equipment }}</span>{% endif %}</a>
     <a href="{{ url_for('maintenance.list_jobs') }}" class="nav-item {{ 'active' if bp == 'maintenance' }}">
-      Maintenance{% if navc.open_jobs %}<span class="nav-count">{{ navc.open_jobs }} open</span>{% endif %}</a>
+      <span class="nav-label">{{ ui.icon('wrench') }}Maintenance</span>{% if navc.open_jobs %}<span class="nav-count">{{ navc.open_jobs }} open</span>{% endif %}</a>
 
     <p class="nav-group">Loans</p>
     <a href="{{ url_for('allocations.list_allocations') }}" class="nav-item {{ 'active' if bp == 'allocations' and ep != 'allocations.issue' }}">
-      Allocations{% if navc.overdue %}<span class="nav-count nav-count-alert">{{ navc.overdue }} overdue</span>{% endif %}</a>
-    {% if can('issue_return') %}<a href="{{ url_for('allocations.issue') }}" class="nav-item {{ 'active' if ep == 'allocations.issue' }}">Issue equipment</a>
+      <span class="nav-label">{{ ui.icon('swap') }}Allocations</span>{% if navc.overdue %}<span class="nav-count nav-count-alert">{{ navc.overdue }} overdue</span>{% endif %}</a>
+    {% if can('issue_return') %}<a href="{{ url_for('allocations.issue') }}" class="nav-item {{ 'active' if ep == 'allocations.issue' }}"><span class="nav-label">{{ ui.icon('plus') }}Issue equipment</span></a>
     <a href="{{ url_for('requests.list_requests') }}" class="nav-item {{ 'active' if bp == 'requests' }}">
-      Student requests{% if navc.pending_requests %}<span class="nav-count nav-count-alert">{{ navc.pending_requests }} pending</span>{% endif %}</a>{% endif %}
+      <span class="nav-label">{{ ui.icon('inbox') }}Student requests</span>{% if navc.pending_requests %}<span class="nav-count nav-count-alert">{{ navc.pending_requests }} pending</span>{% endif %}</a>{% endif %}
 
     <p class="nav-group">People</p>
     <a href="{{ url_for('students.list_students') }}" class="nav-item {{ 'active' if bp == 'students' }}">
-      Students{% if navc.students is defined %}<span class="nav-count">{{ navc.students }}</span>{% endif %}</a>
+      <span class="nav-label">{{ ui.icon('users') }}Students</span>{% if navc.students is defined %}<span class="nav-count">{{ navc.students }}</span>{% endif %}</a>
     <a href="{{ url_for('staff.list_staff') }}" class="nav-item {{ 'active' if bp == 'staff' }}">
-      Lab staff{% if navc.staff is defined %}<span class="nav-count">{{ navc.staff }}</span>{% endif %}</a>
+      <span class="nav-label">{{ ui.icon('badge') }}Lab staff</span>{% if navc.staff is defined %}<span class="nav-count">{{ navc.staff }}</span>{% endif %}</a>
 
     <p class="nav-group">Procurement</p>
-    <a href="{{ url_for('suppliers.list_suppliers') }}" class="nav-item {{ 'active' if bp == 'suppliers' }}">Suppliers</a>
+    <a href="{{ url_for('suppliers.list_suppliers') }}" class="nav-item {{ 'active' if bp == 'suppliers' }}"><span class="nav-label">{{ ui.icon('truck') }}Suppliers</span></a>
     <a href="{{ url_for('purchases.list_purchases') }}" class="nav-item {{ 'active' if bp == 'purchases' }}">
-      Purchases{% if navc.open_orders %}<span class="nav-count">{{ navc.open_orders }} open</span>{% endif %}</a>
+      <span class="nav-label">{{ ui.icon('cart') }}Purchases</span>{% if navc.open_orders %}<span class="nav-count">{{ navc.open_orders }} open</span>{% endif %}</a>
 
     <p class="nav-group">Administration</p>
-    <a href="{{ url_for('labs.list_labs') }}" class="nav-item {{ 'active' if bp == 'labs' }}">Labs</a>
-    <a href="{{ url_for('categories.list_categories') }}" class="nav-item {{ 'active' if bp == 'categories' }}">Categories</a>
-    <a href="{{ url_for('reports.index') }}" class="nav-item {{ 'active' if bp == 'reports' }}">Reports</a>
-    {% if can('manage_users') %}<a href="{{ url_for('users.list_users') }}" class="nav-item {{ 'active' if bp == 'users' and ep not in ('users.student_access',) }}">Users</a>
-    <a href="{{ url_for('users.student_access') }}" class="nav-item {{ 'active' if ep == 'users.student_access' }}">Student sign-in</a>{% endif %}
+    <a href="{{ url_for('labs.list_labs') }}" class="nav-item {{ 'active' if bp == 'labs' }}"><span class="nav-label">{{ ui.icon('building') }}Labs</span></a>
+    <a href="{{ url_for('categories.list_categories') }}" class="nav-item {{ 'active' if bp == 'categories' }}"><span class="nav-label">{{ ui.icon('tag') }}Categories</span></a>
+    <a href="{{ url_for('reports.index') }}" class="nav-item {{ 'active' if bp == 'reports' }}"><span class="nav-label">{{ ui.icon('chart') }}Reports</span></a>
+    {% if can('manage_users') %}<a href="{{ url_for('users.list_users') }}" class="nav-item {{ 'active' if bp == 'users' and ep not in ('users.student_access',) }}"><span class="nav-label">{{ ui.icon('shield') }}Users</span></a>
+    <a href="{{ url_for('users.student_access') }}" class="nav-item {{ 'active' if ep == 'users.student_access' }}"><span class="nav-label">{{ ui.icon('key') }}Student sign-in</span></a>{% endif %}
 
     <p class="sidebar-foot">Data as of {{ today|dmy }} · MySQL 8</p>
   </div></nav>
@@ -114,11 +117,7 @@
         <span aria-current="page">{{ self.title() }}</span>
       {% endif %}
     </nav>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, message in messages %}
-        <div class="flash flash-{{ category }}" role="alert">{{ message }}</div>
-      {% endfor %}
-    {% endwith %}
+    {{ ui.flashes() }}
     {% block content %}{% endblock %}
     <footer>Smart Laboratory Equipment Inventory, Allocation and Maintenance Management System · Review 3 prototype</footer>
   </main>

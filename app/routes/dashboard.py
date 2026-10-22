@@ -1,7 +1,7 @@
 """Home page (operations overview) and the global search in the top bar."""
 from datetime import date, timedelta
 
-from flask import Blueprint, render_template, request
+from flask import Blueprint, g, render_template, request
 
 from .. import activity, db, today
 
@@ -78,9 +78,23 @@ def index():
     for ev in feed:
         ev["summary"] = activity.summary(ev)
 
+    # Completed maintenance spend per type, largest first (dashboard card).
+    spend = db.query_all(
+        "SELECT maintenance_type AS kind, COUNT(*) AS jobs, "
+        "       COALESCE(SUM(CASE WHEN maintenance_status = 'Completed' THEN maintenance_cost END), 0) AS spent "
+        "FROM maintenance GROUP BY maintenance_type ORDER BY spent DESC, maintenance_type")
+
+    # Greeting: the linked lab staff name, else a name made from the username.
+    user = g.get("user") or {}
+    staff = (db.query_one("SELECT staff_name FROM lab_staff WHERE staff_id = %s", (user["staff_id"],))
+             if user.get("staff_id") else None)
+    display_name = staff["staff_name"] if staff else user.get("username", "").replace(".", " ").title()
+
     return render_template("dashboard.html", counts=counts, totals=totals, overdue=overdue,
                            due_soon=due_soon, months=months, busiest=busiest,
-                           month_max=max(busiest["n"], 1), labs=labs, feed=feed)
+                           month_max=max(busiest["n"], 1), labs=labs, feed=feed,
+                           spend=spend, spend_max=max([s["spent"] for s in spend] + [1]),
+                           display_name=display_name)
 
 
 @bp.route("/search")
